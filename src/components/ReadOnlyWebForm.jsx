@@ -1,3 +1,5 @@
+// src/components/ReadOnlyWebForm.jsx
+
 import React, { useRef, useState, useEffect } from "react";
 
 // Simulated API function - replace with your actual implementation

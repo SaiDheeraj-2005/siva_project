@@ -1,3 +1,5 @@
+// src/pages/DashboardPage.jsx
+
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, TrendingUp, Users, FileText, BarChart3, PieChart, Calendar, Activity, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Cell, BarChart, Bar } from 'recharts';

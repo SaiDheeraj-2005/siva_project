@@ -1,3 +1,5 @@
+// src/pages/AdminDashboard.jsx
+
 import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import { useNavigate } from "react-router-dom";
@@ -54,7 +56,7 @@ export default function AdminDashboard() {
         <Sidebar section={section} setSection={setSection} role={role} />
         <div className="flex-1 p-8 w-full max-w-7xl mx-auto">
           <h2 className="text-2xl font-bold mb-8">
-            Welcome, <span className="text-blue-700">{username}</span> ({role})
+            Welcome <span className="text-blue-700">{username}</span>
           </h2>
           {renderSection()}
         </div>

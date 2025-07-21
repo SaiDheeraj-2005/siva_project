@@ -1,3 +1,5 @@
+// src/pages/SuperAdminDashboard.jsx
+
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../components/Sidebar";
 import { useNavigate } from "react-router-dom";
@@ -63,7 +65,7 @@ export default function SuperAdminDashboard() {
         <Sidebar section={section} setSection={setSection} role={role} />
         <div className="flex-1 p-8 w-full max-w-7xl mx-auto">
           <h2 className="text-2xl font-bold mb-8">
-            Welcome, <span className="text-blue-700">{username}</span> ({role})
+            Welcome <span className="text-blue-700">{username}</span>
           </h2>
           {renderSection()}
         </div>
@@ -263,8 +265,9 @@ function UserManagement() {
 }
 
 // ============ SUMMARY FACT TAB ================
+// ============ SUMMARY FACT TAB ================
 function SummaryFact() {
-  const [data, setData] = useState(getSummaryData());
+  const [data, setData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState('');
   const [filterSecurityGroup, setFilterSecurityGroup] = useState('');
@@ -273,6 +276,79 @@ function SummaryFact() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Function to sync approved forms to summary data
+  const syncApprovedForms = () => {
+    const allForms = getForms();
+    const approvedForms = allForms.filter(form => form.finalStatus === "Approved");
+    
+    // Get existing summary data
+    const existingSummaryData = getSummaryData();
+    
+    // Create a map of existing IDs for quick lookup
+    const existingIds = new Set(existingSummaryData.map(item => item.id));
+    
+    // Process approved forms
+    const newSummaryEntries = approvedForms
+      .filter(form => {
+        // Check if this form's factUserId is already in summary
+        const formId = form.factUserId || form.data?.factUserId || '';
+        return formId && !existingIds.has(formId);
+      })
+      .map(form => {
+        // Extract data from form - handle both direct properties and nested data
+        const formData = form.data || form;
+        const factUserId = form.factUserId || formData.factUserId || '';
+        
+        // Get entity names (company list)
+        const entityNames = Array.isArray(form.entityName || formData.entityName) 
+          ? (form.entityName || formData.entityName).join(', ') 
+          : form.entityName || formData.entityName || '';
+        
+        // Get security group from form - check multiple possible locations
+        const securityGroup = form.securityGroupOther || 
+                            formData.securityGroupOther || 
+                            form.data?.securityGroupOther ||
+                            '';
+        
+        // Also check if there's a form-specific localStorage key for security group
+        const formSpecificKey = form.id ? `securityGroupOther_${form.id}` : null;
+        const storedSecurityGroup = formSpecificKey ? localStorage.getItem(formSpecificKey) : null;
+        
+        return {
+          id: factUserId,
+          companyList: entityNames,
+          securityGroup: storedSecurityGroup || securityGroup || ''
+        };
+      });
+    
+    // Combine existing and new data
+    const combinedData = [...existingSummaryData, ...newSummaryEntries];
+    
+    // Update both state and localStorage
+    setSummaryData(combinedData);
+    setData(combinedData);
+  };
+
+  // Initial load and sync
+  useEffect(() => {
+    // Load existing summary data
+    const existingData = getSummaryData();
+    setData(existingData);
+    
+    // Sync approved forms on mount
+    syncApprovedForms();
+    
+    // Set up event listener for form changes
+    const handleStorageChange = (e) => {
+      if (e.key === 'forms') {
+        syncApprovedForms();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   // Unique filter lists, dynamic based on unfiltered data
   const uniqueCompanies = useMemo(
@@ -491,6 +567,12 @@ function SummaryFact() {
     setCurrentPage(1);
   };
 
+  // Sync approved forms button
+  const handleSyncApprovedForms = () => {
+    syncApprovedForms();
+    alert('Summary data synced with approved forms');
+  };
+
   // Check if filters are active
   const hasActiveFilters = searchTerm || filterCompany || filterSecurityGroup;
   const noResults = sortedData.length === 0;
@@ -519,6 +601,14 @@ function SummaryFact() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all duration-200 shadow-sm hover:shadow-md"
+              onClick={handleSyncApprovedForms}
+              title="Sync with approved forms"
+            >
+              <span>🔄</span>
+              <span>Sync Approved</span>
+            </button>
             <button
               className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
               onClick={handleAddNew}
@@ -922,6 +1012,15 @@ function SummaryFact() {
                 <div>SF001 | TechCorp Industries | Admin</div>
                 <div>SF002 | GlobalSoft Solutions | Developer</div>
                 <div>SF003 | DataFlow Systems | Manager</div>
+              </div>
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-green-800 font-semibold mb-1">Auto-Sync Feature:</p>
+                <p className="text-green-700 text-xs">This table automatically syncs with approved forms. When a form's Final Status is set to "Approved", it will appear here with:</p>
+                <ul className="text-green-700 text-xs mt-1 ml-4 list-disc">
+                  <li>ID: The FACT User ID from the form</li>
+                  <li>Company List: The selected entity names</li>
+                  <li>Security Group: The value entered by admin</li>
+                </ul>
               </div>
             </div>
           </div>

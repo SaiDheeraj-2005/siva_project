@@ -1,3 +1,5 @@
+// src/pages/UserDashboard.jsx
+
 import React, { useState, useEffect } from "react";
 import WebForm from "../components/WebForm";
 import ReadOnlyWebForm from "../components/ReadOnlyWebForm";
@@ -247,7 +249,7 @@ export default function UserDashboard() {
           width: "90vw",
           maxWidth: 1400,
         }}>
-          Welcome, <span style={{ fontWeight: 900 }}>{username}</span> (Normal)
+          Welcome <span style={{ fontWeight: 900 }}>{username}</span>
         </div>
         {department && (
           <div style={{
