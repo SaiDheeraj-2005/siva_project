@@ -1,5 +1,3 @@
-// src/components/ReadOnlyWebForm.jsx
-
 import React, { useRef, useState, useEffect } from "react";
 
 // Simulated API function - replace with your actual implementation
@@ -12,17 +10,19 @@ const updateForm = (formId, updates) => {
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 
-const inputStyle = {
+// Dynamic input style function
+const getInputStyle = (canEdit) => ({
   padding: "12px 15px",
   border: "1px solid #d1d5db",
   borderRadius: "4px",
-  background: "#f9fafb",
+  background: canEdit ? "#f9fafb" : "#f1f5f9",
   fontSize: "14px",
   boxSizing: "border-box",
   width: "100%",
   flex: 1,
   minHeight: "45px",
-};
+  cursor: canEdit ? "text" : "not-allowed"
+});
 
 const labelStyle = {
   fontSize: "14px",
@@ -56,8 +56,34 @@ const sectionTitle = {
 
 function onlyDate(dtStr) {
   if (!dtStr) return "-";
-  const dt = new Date(dtStr);
+  
+  // If already in DD/MM/YYYY format, just format it to DD-MM-YYYY
+  if (typeof dtStr === 'string' && dtStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+    return dtStr.replace(/\//g, '-');
+  }
+  
+  // Try to parse different date formats
+  let dt = new Date(dtStr);
+  
+  // If invalid date, try to parse DD/MM/YYYY format
+  if (isNaN(dt.getTime()) && typeof dtStr === 'string') {
+    // Check if it's in DD/MM/YYYY format
+    const parts = dtStr.split('/');
+    if (parts.length === 3) {
+      // Try DD/MM/YYYY format
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const year = parseInt(parts[2], 10);
+      
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        // Month is 0-indexed in JavaScript Date
+        dt = new Date(year, month - 1, day);
+      }
+    }
+  }
+  
   if (isNaN(dt.getTime())) return "-";
+  
   const day = String(dt.getDate()).padStart(2, "0");
   const month = String(dt.getMonth() + 1).padStart(2, "0");
   const year = dt.getFullYear();
@@ -66,6 +92,12 @@ function onlyDate(dtStr) {
 
 function onlyDateForApproved(dtStr) {
   if (!dtStr) return "";
+  
+  // If already in DD/MM/YYYY format, just format it to DD-MM-YYYY
+  if (typeof dtStr === 'string' && dtStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+    return dtStr.replace(/\//g, '-');
+  }
+  
   const dt = new Date(dtStr);
   if (isNaN(dt.getTime())) return "";
   const day = String(dt.getDate()).padStart(2, "0");
@@ -98,6 +130,7 @@ const sampleData = {
   requestedName: "",
   requestedDesignation: "",
   timestamp: "",
+  submissionDate: "",
   sivaStatus: "",
   sivaStatusDate: "",
   sivaStatusApprover: "",
@@ -112,52 +145,190 @@ export default function ReadOnlyWebForm({
   onClose = () => console.log('Close clicked'), 
 }) {
   const formRef = useRef();
-  const d = data || {};
-  const securityDept = d.securityDept || [];
-  const securityCat = d.securityCat || [];
-  const entityName = d.entityName || [];
+  
+  // Enhanced data handling to ensure all fields are properly extracted
+  let d = {};
+  
+  // First, check if data has a nested 'data' property
+  if (data && typeof data === 'object') {
+    // Create a flat object that includes all possible approval fields
+    const flatData = {
+      ...sampleData, // Start with default structure
+    };
+    
+    // Helper function to extract all fields from nested objects
+    const extractAllFields = (obj, target) => {
+      Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined && obj[key] !== null) {
+          // If it's an object but not an array, check for nested fields
+          if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+            extractAllFields(obj[key], target);
+          }
+          // Always set the value at the top level
+          target[key] = obj[key];
+        }
+      });
+    };
+    
+    // Extract fields from data
+    extractAllFields(data, flatData);
+    
+    // If data has a nested 'data' property, extract from that too
+    if (data.data && typeof data.data === 'object') {
+      extractAllFields(data.data, flatData);
+    }
+    
+    d = flatData;
+  } else {
+    d = { ...sampleData };
+  }
+  
+  // Initialize arrays with empty arrays if not already arrays
+  d.securityDept = Array.isArray(d.securityDept) ? d.securityDept : [];
+  d.securityCat = Array.isArray(d.securityCat) ? d.securityCat : [];
+  d.entityName = Array.isArray(d.entityName) ? d.entityName : [];
 
-  // Ensure role is correctly set
+  // FIXED: Consistent role checking logic
   const userRole = localStorage.getItem("role") || "Normal";
   
-  // Role-based permissions
-  const canEditSecurityGroup = userRole === "Admin" || userRole === "SuperAdmin";
+  // Helper function to check if user can edit (case-insensitive)
+  const canEdit = () => {
+    const role = userRole?.toLowerCase();
+    return role === "admin" || role === "superadmin";
+  };
   
-  const [securityGroupOther, setSecurityGroupOther] = useState(d.securityGroupOther || "");
-  const [showSecurityGroupHint, setShowSecurityGroupHint] = useState(false);
+  const canEditFields = canEdit();
+  
+  // Initialize state with the data
+  const [editedData, setEditedData] = useState({
+    ...d,
+    securityDept: d.securityDept || [],
+    securityCat: d.securityCat || [],
+    entityName: d.entityName || []
+  });
 
+  // Load data from localStorage on mount
   useEffect(() => {
-    // Create form-specific localStorage key using the form ID
-    const formSpecificKey = d.id ? `securityGroupOther_${d.id}` : null;
-    
-    if (formSpecificKey) {
-      const stored = localStorage.getItem(formSpecificKey);
-      if (stored !== null) {
-        setSecurityGroupOther(stored);
-      } else {
-        setSecurityGroupOther(d.securityGroupOther || "");
-      }
-    } else {
-      // If no form ID, just use the data value
-      setSecurityGroupOther(d.securityGroupOther || "");
-    }
-  }, [d.id, d.securityGroupOther]);
-
-  const handleGroupOtherChange = (e) => {
-    // Only allow changes if user has permission
-    if (!canEditSecurityGroup) return;
-    
-    const newValue = e.target.value;
-    setSecurityGroupOther(newValue);
-    
     if (d.id) {
-      // Update the form via API
-      updateForm(d.id, { securityGroupOther: newValue });
-      
-      // Store in form-specific localStorage key
-      const formSpecificKey = `securityGroupOther_${d.id}`;
-      localStorage.setItem(formSpecificKey, newValue);
+      // Load form data
+      const formDataKey = `formData_${d.id}`;
+      const storedData = localStorage.getItem(formDataKey);
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          setEditedData(prev => ({
+            ...prev,
+            ...parsedData,
+            // Ensure arrays are arrays
+            securityDept: Array.isArray(parsedData.securityDept) ? parsedData.securityDept : [],
+            securityCat: Array.isArray(parsedData.securityCat) ? parsedData.securityCat : [],
+            entityName: Array.isArray(parsedData.entityName) ? parsedData.entityName : []
+          }));
+        } catch (e) {
+          console.error('Error parsing stored form data:', e);
+        }
+      } else {
+        // If no stored form data, check for individual security group
+        const securityGroupKey = `securityGroupOther_${d.id}`;
+        const storedSecurityGroup = localStorage.getItem(securityGroupKey);
+        if (storedSecurityGroup !== null) {
+          setEditedData(prev => ({
+            ...prev,
+            securityGroupOther: storedSecurityGroup
+          }));
+        }
+      }
     }
+  }, [d.id]);
+
+  // Save to localStorage helper function
+  const saveToLocalStorage = (dataToSave) => {
+    if (!d.id) return;
+    
+    const formDataKey = `formData_${d.id}`;
+    const securityGroupKey = `securityGroupOther_${d.id}`;
+    
+    try {
+      // Save complete form data
+      localStorage.setItem(formDataKey, JSON.stringify(dataToSave));
+      
+      // Also save security group separately for backward compatibility
+      if (dataToSave.securityGroupOther !== undefined) {
+        localStorage.setItem(securityGroupKey, dataToSave.securityGroupOther);
+      }
+      
+      console.log('Data saved to localStorage:', dataToSave);
+    } catch (e) {
+      console.error('Error saving to localStorage:', e);
+    }
+  };
+
+  const handleSave = () => {
+    if (d.id && canEditFields) {
+      // Save all edited data to API
+      updateForm(d.id, editedData);
+      
+      // Save all edited data to localStorage
+      saveToLocalStorage(editedData);
+      
+      console.log('Saved edited data:', editedData);
+      
+      // Show save notification
+      setSaveNotification(true);
+      setTimeout(() => {
+        setSaveNotification(false);
+        onClose();
+      }, 1500);
+    } else {
+      onClose();
+    }
+  };
+  
+  const [showSecurityGroupHint, setShowSecurityGroupHint] = useState(false);
+  const [saveNotification, setSaveNotification] = useState(false);
+
+  // Handle field changes
+  const handleFieldChange = (fieldName, value) => {
+    if (!canEditFields) return;
+    
+    setEditedData(prev => {
+      const newData = {
+        ...prev,
+        [fieldName]: value
+      };
+      
+      // REMOVED: Auto-save to localStorage on every change
+      // Now only saves when save button is clicked
+      
+      return newData;
+    });
+    
+    // If it's the security group field, also update API immediately
+    if (fieldName === 'securityGroupOther' && d.id) {
+      updateForm(d.id, { [fieldName]: value });
+    }
+  };
+
+  // Handle checkbox changes for arrays
+  const handleCheckboxChange = (fieldName, value) => {
+    if (!canEditFields) return;
+    
+    setEditedData(prev => {
+      const currentArray = prev[fieldName] || [];
+      const newArray = currentArray.includes(value)
+        ? currentArray.filter(x => x !== value)
+        : [...currentArray, value];
+      
+      const newData = {
+        ...prev,
+        [fieldName]: newArray
+      };
+      
+      // REMOVED: Auto-save to localStorage
+      // Now only saves when save button is clicked
+      
+      return newData;
+    });
   };
 
   // Enhanced PDF download function
@@ -304,10 +475,6 @@ export default function ReadOnlyWebForm({
     }
   };
 
-  const displayEntityNames = Array.isArray(entityName)
-    ? entityName.join(", ")
-    : entityName || "";
-
   return (
     <div style={{
       position: "fixed",
@@ -365,6 +532,25 @@ export default function ReadOnlyWebForm({
           >
             📥
           </button>
+          {canEditFields && (
+            <button
+              type="button"
+              onClick={handleSave}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#059669",
+                padding: "2px",
+                fontSize: "22px",
+                marginRight: "8px"
+              }}
+              title="Save changes"
+              aria-label="Save changes"
+            >
+              💾
+            </button>
+          )}
           <button
             onClick={onClose}
             style={{
@@ -379,6 +565,28 @@ export default function ReadOnlyWebForm({
             aria-label="Close"
           >×</button>
         </div>
+
+        {/* Save notification */}
+        {saveNotification && (
+          <div style={{
+            position: "absolute",
+            top: "60px",
+            right: "20px",
+            background: "#10b981",
+            color: "white",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            fontSize: "14px",
+            fontWeight: "500",
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            ✓ Changes saved successfully!
+          </div>
+        )}
 
         <div
           ref={formRef}
@@ -428,35 +636,83 @@ export default function ReadOnlyWebForm({
           }}>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>First Name: *</label>
-              <input style={inputStyle} disabled value={d.firstName || ""} placeholder="Enter your First Name" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.firstName || ""}
+                onChange={(e) => handleFieldChange('firstName', e.target.value)}
+                placeholder="Enter your First Name"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Last Name: *</label>
-              <input style={inputStyle} disabled value={d.lastName || ""} placeholder="Enter your Last Name" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.lastName || ""}
+                onChange={(e) => handleFieldChange('lastName', e.target.value)}
+                placeholder="Enter your Last Name"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Department: *</label>
-              <input style={inputStyle} disabled value={d.department || ""} placeholder="Enter your Department Name" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.department || ""}
+                onChange={(e) => handleFieldChange('department', e.target.value)}
+                placeholder="Enter your Department Name"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Designation: *</label>
-              <input style={inputStyle} disabled value={d.designation || ""} placeholder="Enter your Designation" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.designation || ""}
+                onChange={(e) => handleFieldChange('designation', e.target.value)}
+                placeholder="Enter your Designation"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Employee Code:</label>
-              <input style={inputStyle} disabled value={d.employeeCode || ""} placeholder="Enter your Employee Code" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.employeeCode || ""}
+                onChange={(e) => handleFieldChange('employeeCode', e.target.value)}
+                placeholder="Enter your Employee Code"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Email Address: *</label>
-              <input style={inputStyle} disabled value={d.emailAddress || ""} placeholder="Enter your Email address" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.emailAddress || ""}
+                onChange={(e) => handleFieldChange('emailAddress', e.target.value)}
+                placeholder="Enter your Email address"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Office Location:</label>
-              <input style={inputStyle} disabled value={d.officeLocation || ""} placeholder="Enter your Office Location" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.officeLocation || ""}
+                onChange={(e) => handleFieldChange('officeLocation', e.target.value)}
+                placeholder="Enter your Office Location"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Reported To:</label>
-              <input style={inputStyle} disabled value={d.reportedTo || ""} placeholder="Reported To" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.reportedTo || ""}
+                onChange={(e) => handleFieldChange('reportedTo', e.target.value)}
+                placeholder="Reported To"
+              />
             </div>
           </div>
 
@@ -467,12 +723,18 @@ export default function ReadOnlyWebForm({
           }}>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>FACT User ID: *</label>
-              <input style={inputStyle} disabled value={d.factUserId || ""} placeholder="Max 10 characters only" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.factUserId || ""}
+                onChange={(e) => handleFieldChange('factUserId', e.target.value)}
+                placeholder="Max 10 characters only"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Entity Name: *</label>
               <div style={{
-                ...inputStyle,
+                ...getInputStyle(canEditFields),
                 display: "flex",
                 alignItems: "center",
                 flexWrap: "wrap",
@@ -481,7 +743,7 @@ export default function ReadOnlyWebForm({
                 overflow: "hidden",
                 textOverflow: "ellipsis"
               }}>
-                {displayEntityNames || "Select Entity Name"}
+                {Array.isArray(editedData.entityName) ? editedData.entityName.join(", ") : editedData.entityName || "Select Entity Name"}
               </div>
             </div>
             <div style={fieldContainerStyle}>
@@ -489,11 +751,23 @@ export default function ReadOnlyWebForm({
                 <span>No. of Days: *</span>
                 <span style={{ marginTop: "2px" }}>Backdated</span>
               </label>
-              <input style={inputStyle} disabled value={d.noOfDaysBackdated || ""} placeholder="Enter number of days backdated" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.noOfDaysBackdated || ""}
+                onChange={(e) => handleFieldChange('noOfDaysBackdated', e.target.value)}
+                placeholder="Enter number of days backdated"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Year:</label>
-              <input style={inputStyle} disabled value={d.year || ""} placeholder="Enter year" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.year || ""}
+                onChange={(e) => handleFieldChange('year', e.target.value)}
+                placeholder="Enter year"
+              />
             </div>
           </div>
 
@@ -516,8 +790,9 @@ export default function ReadOnlyWebForm({
                 }}>
                   <input
                     type="checkbox"
-                    disabled
-                    checked={securityDept.includes(item)}
+                    disabled={!canEditFields}
+                    checked={editedData.securityDept.includes(item)}
+                    onChange={() => handleCheckboxChange('securityDept', item)}
                     style={{ marginRight: 5, verticalAlign: "middle" }}
                   />
                   {item}
@@ -540,27 +815,27 @@ export default function ReadOnlyWebForm({
                   padding: "4px 8px",
                   border: "1px solid #d1d5db",
                   borderRadius: "4px",
-                  background: canEditSecurityGroup ? "#f9fafb" : "#f1f5f9",
+                  background: canEditFields ? "#f9fafb" : "#f1f5f9",
                   fontSize: "13px",
                   boxSizing: "border-box",
                   width: "100px",
                   height: "28px",
                   marginLeft: "0px",
-                  cursor: canEditSecurityGroup ? "text" : "not-allowed"
+                  cursor: canEditFields ? "text" : "not-allowed"
                 }}
                 type="text"
-                value={securityGroupOther}
-                readOnly={!canEditSecurityGroup}
-                onChange={canEditSecurityGroup ? handleGroupOtherChange : undefined}
+                value={editedData.securityGroupOther || ""}
+                readOnly={!canEditFields}
+                onChange={(e) => handleFieldChange('securityGroupOther', e.target.value)}
                 placeholder="Security Group"
-                onFocus={!canEditSecurityGroup ? () => setShowSecurityGroupHint(true) : undefined}
-                onBlur={!canEditSecurityGroup ? () => setShowSecurityGroupHint(false) : undefined}
+                onFocus={!canEditFields ? () => setShowSecurityGroupHint(true) : undefined}
+                onBlur={!canEditFields ? () => setShowSecurityGroupHint(false) : undefined}
               />
             </label>
           </div>
           
           {/* Professional small hint shown just under the input */}
-          {showSecurityGroupHint && !canEditSecurityGroup && (
+          {showSecurityGroupHint && !canEditFields && (
             <div style={{
               marginLeft: "auto",
               marginRight: 0,
@@ -579,7 +854,7 @@ export default function ReadOnlyWebForm({
               gap: 7
             }}>
               <span style={{ color: "#eab308", fontSize: 15, flexShrink: 0 }}>ℹ️</span>
-              Only Admin can set the security group
+              Only Admin can edit
             </div>
           )}
 
@@ -588,7 +863,13 @@ export default function ReadOnlyWebForm({
           <div style={{ marginBottom: "12px", display: "flex", flexWrap: "wrap" }}>
             {["HOD/Manager", "Division", "Executive", "Project Accountant", "Others"].map(item => (
               <label key={item} style={checkboxLabel}>
-                <input type="checkbox" disabled checked={securityCat.includes(item)} style={{ marginRight: 5 }} /> {item}
+                <input
+                  type="checkbox"
+                  disabled={!canEditFields}
+                  checked={editedData.securityCat.includes(item)}
+                  onChange={() => handleCheckboxChange('securityCat', item)}
+                  style={{ marginRight: 5, verticalAlign: "middle" }}
+                /> {item}
               </label>
             ))}
           </div>
@@ -598,142 +879,177 @@ export default function ReadOnlyWebForm({
           <div style={{ display: "grid", gap: "10px", marginBottom: "12px" }}>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Module Name:</label>
-              <input style={inputStyle} disabled value={d.moduleName || ""} placeholder="Module name" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.moduleName || ""}
+                onChange={(e) => handleFieldChange('moduleName', e.target.value)}
+                placeholder="Module name"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Features Name:</label>
-              <input style={inputStyle} disabled value={d.featuresName || ""} placeholder="Features name" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.featuresName || ""}
+                onChange={(e) => handleFieldChange('featuresName', e.target.value)}
+                placeholder="Features name"
+              />
             </div>
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Reason:</label>
-              <input style={inputStyle} disabled value={d.reason || ""} placeholder="Reason for request" />
+              <input
+                style={getInputStyle(canEditFields)}
+                readOnly={!canEditFields}
+                value={editedData.reason || ""}
+                onChange={(e) => handleFieldChange('reason', e.target.value)}
+                placeholder="Reason for request"
+              />
             </div>
           </div>
 
           {/* Reduced spacer to move signature section up */}
           <div style={{ flex: 0.4 }}></div>
 
-          {/* Dynamic Signature Section */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "10px",
-            marginTop: "10px",
-            marginBottom: "30px",
-            fontSize: "12px"
-          }}>
-            {["Requested by", "Validated by", "Recommended by", "Approved by"].map((title) => {
-              const stampStatus =
-                title === "Requested by" && d.timestamp
-                  ? "Submitted"
-                  : title === "Validated by" && d.sivaStatus
-                  ? d.sivaStatus
-                  : title === "Recommended by" && d.gunaseelanStatus
-                  ? d.gunaseelanStatus
-                  : null;
 
-              const stampApprover =
-                title === "Requested by"
-                  ? d.requestedName
-                  : title === "Validated by"
-                  ? d.sivaStatusApprover
-                  : title === "Recommended by"
-                  ? d.gunaseelanStatusApprover
-                  : "";
+        {/* Dynamic Signature Section */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "10px",
+          marginTop: "10px",
+          marginBottom: "30px",
+          fontSize: "12px"
+        }}>
+          {["Requested by", "Validated by", "Recommended by", "Approved by"].map((title) => {
+            // Enhanced stamp status logic with better field checking
+            let stampStatus = null;
+            let stampApprover = "";
+            let stampDate = "";
+            let designation = "-";
+            let approverName = "-";
+            let showFinalStatusStamp = false;
+            let finalStatus = null;
 
-              const stampDate =
-                title === "Requested by"
-                  ? d.timestamp
-                  : title === "Validated by"
-                  ? d.sivaStatusDate
-                  : title === "Recommended by"
-                  ? d.gunaseelanStatusDate
-                  : title === "Approved by"
-                  ? d.naraStatusDate
-                  : "";
+            if (title === "Requested by") {
+              // Check multiple possible fields for submission status
+              if (d.timestamp || d.submissionDate || d.requestedName) {
+                stampStatus = "Submitted";
+              }
+              stampApprover = d.requestedName || 
+                            (d.firstName && d.lastName ? `${d.firstName} ${d.lastName}` : "") ||
+                            "-";
+              stampDate = d.timestamp || d.submissionDate || "";
+              designation = d.requestedDesignation || d.designation || "-";
+              approverName = stampApprover;
+            } else if (title === "Validated by") {
+              stampStatus = d.sivaStatus || null;
+              stampApprover = d.sivaStatusApprover || "Mr Siva";
+              stampDate = d.sivaStatusDate || "";
+              designation = "IT Manager";
+              approverName = stampApprover;
+            } else if (title === "Recommended by") {
+              stampStatus = d.gunaseelanStatus || null;
+              stampApprover = d.gunaseelanStatusApprover || "Mr Gunaseelan";
+              stampDate = d.gunaseelanStatusDate || "";
+              designation = "Head of Accounts";
+              approverName = stampApprover;
+            } else if (title === "Approved by") {
+              // Check for final status and show appropriate stamp
+              finalStatus = d.finalStatus;
+              showFinalStatusStamp = finalStatus === "Approved" || finalStatus === "Rejected";
+              stampDate = d.naraStatusDate || d.finalStatusDate || "";
+              designation = "CMD";
+              approverName = "Datuk PK Nara";
+            }
 
-              const designation =
-                title === "Requested by"
-                  ? d.requestedDesignation || d.designation || "-"
-                  : title === "Validated by"
-                  ? "IT Manager"
-                  : title === "Recommended by"
-                  ? "Head of Accounts"
-                  : title === "Approved by"
-                  ? "CMD"
-                  : "-";
-
-              const approverName =
-                title === "Requested by"
-                  ? d.requestedName || (d.firstName && d.lastName ? `${d.firstName} ${d.lastName}` : "-")
-                  : title === "Validated by"
-                  ? stampApprover || "Mr Siva"
-                  : title === "Recommended by"
-                  ? "Mr Gunaseelan"
-                  : title === "Approved by"
-                  ? "Datuk PK Nara"
-                  : "-";
-
-              const getStampStyle = (status) => {
-                let color = "#999";
-                if (status === "Approved" || status === "Submitted") color = "green";
-                else if (status === "Rejected") color = "red";
-                else if (status === "Pending") color = "#eab308";
-                return {
-                  display: "inline-block",
-                  padding: "4px 11px",
-                  border: `1.5px solid ${color}`,
-                  color: color,
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                  textAlign: "center",
-                  letterSpacing: "1px"
-                };
+            const getStampStyle = (status) => {
+              let color = "#999";
+              if (status === "Approved" || status === "Submitted") color = "green";
+              else if (status === "Rejected") color = "red";
+              else if (status === "Pending") color = "#eab308";
+              return {
+                display: "inline-block",
+                padding: "4px 11px",
+                border: `1.5px solid ${color}`,
+                color: color,
+                fontWeight: "bold",
+                fontSize: "12px",
+                textAlign: "center",
+                letterSpacing: "1px"
               };
+            };
 
-              const shouldShowStamp = 
-                title === "Requested by" || 
-                title === "Validated by" || 
-                title === "Recommended by";
+            const getFinalStampStyle = (status) => {
+              const isApproved = status === "Approved";
+              return {
+                display: "inline-block",
+                border: `2px solid ${isApproved ? "#16a34a" : "#dc2626"}`,
+                borderRadius: "6px",
+                padding: "6px 14px",
+                backgroundColor: isApproved ? "rgba(34, 197, 94, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                transform: "rotate(-3deg)",
+              };
+            };
 
-              return (
-                <div key={title} style={{ minHeight: "140px", textAlign: "left" }}>
-                  {/* Title aligned left */}
-                  <div style={{ fontWeight: "bold", marginBottom: "12px" }}>
-                    {title},
-                  </div>
-                  
-                  {/* Centered stamp */}
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "flex-start",
-                    alignItems: "center",
-                    height: "32px",
-                    marginBottom: "8px",
-                    marginLeft: "25px"
-                  }}>
-                    {shouldShowStamp && stampStatus && (
-                      <div style={getStampStyle(stampStatus)}>
-                        {stampStatus.toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Line */}
-                  <div style={{ marginBottom: "12px" }}>
-                    ________________________
-                  </div>
-                  
-                  {/* Name / Designation / Date */}
-                  <div style={{ marginTop: "10px", lineHeight: "1.4" }}>
-                    <div>Name: {approverName}</div>
-                    <div>Designation: {designation}</div>
-                    <div>Date: {title === "Approved by" ? onlyDateForApproved(stampDate) : onlyDate(stampDate)}</div>
-                  </div>
+            const shouldShowStamp = stampStatus && (
+              title === "Requested by" || 
+              title === "Validated by" || 
+              title === "Recommended by"
+            );
+
+            return (
+              <div key={title} style={{ minHeight: "140px", textAlign: "left" }}>
+                {/* Title aligned left */}
+                <div style={{ fontWeight: "bold", marginBottom: "12px" }}>
+                  {title},
                 </div>
-              );
-            })}
-          </div>
+                
+                {/* Centered stamp */}
+                <div style={{
+                  display: "flex",
+                  justifyContent: "flex-start",
+                  alignItems: "center",
+                  height: "32px",
+                  marginBottom: "8px",
+                  marginLeft: "25px"
+                }}>
+                  {shouldShowStamp && (
+                    <div style={getStampStyle(stampStatus)}>
+                      {stampStatus.toUpperCase()}
+                    </div>
+                  )}
+                  {title === "Approved by" && showFinalStatusStamp && (
+                    <div style={getFinalStampStyle(finalStatus)}>
+                      <div style={{
+                        fontSize: "14px",
+                        fontWeight: "bold",
+                        color: finalStatus === "Approved" ? "#16a34a" : "#dc2626",
+                        textAlign: "center",
+                        letterSpacing: "1.5px"
+                      }}>
+                        {finalStatus.toUpperCase()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Line */}
+                <div style={{ marginBottom: "12px" }}>
+                  ________________________
+                </div>
+                
+                {/* Name / Designation / Date */}
+                <div style={{ marginTop: "10px", lineHeight: "1.4" }}>
+                  <div>Name: {approverName}</div>
+                  <div>Designation: {designation}</div>
+                  <div>Date: {title === "Approved by" ? onlyDateForApproved(stampDate) : onlyDate(stampDate)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
         </div>
       </div>
     </div>

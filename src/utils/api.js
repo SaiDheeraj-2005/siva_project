@@ -52,11 +52,32 @@ forms.unshift({
   setForms(forms);
 }
 
-// Update a form by id (partial update)
-export function updateForm(id, updates) {
-  const forms = getForms().map(f => f.id === id ? { ...f, ...updates } : f);
-  setForms(forms);
-}
+
+
+// Add this function to utils/api.js
+// Add this function to your api.js file if it doesn't exist
+
+export const updateForm = (formId, updatedData) => {
+  const forms = getForms();
+  const index = forms.findIndex(f => f.id === formId);
+  
+  if (index !== -1) {
+    forms[index] = {
+      ...forms[index],
+      ...updatedData,
+      timestamp: new Date().toISOString() // Update timestamp
+    };
+    localStorage.setItem("forms", JSON.stringify(forms));
+  }
+  
+  return forms[index];
+};
+
+// Also add a function to check if a resubmission already exists
+export const hasResubmittedForm = (originalFormId) => {
+  const forms = getForms();
+  return forms.some(f => f.originalFormId === originalFormId);
+};
 
 // Remove a form by id
 export function removeForm(id) {

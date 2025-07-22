@@ -5,8 +5,7 @@ import WebForm from "../components/WebForm";
 import ReadOnlyWebForm from "../components/ReadOnlyWebForm";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
-import { getForms, setForms } from "../utils/api";
-import { addForm } from "../utils/api"; // at top
+import { getForms, addForm, updateForm } from "../utils/api"; // Added updateForm import
 
 // ---- Simple Modal UI ----
 function ConfirmModal({ open, onConfirm, onCancel }) {
@@ -37,74 +36,17 @@ function ConfirmModal({ open, onConfirm, onCancel }) {
   );
 }
 
-// ---- Edit Confirmation Modal ----
-function EditConfirmModal({ open, onConfirm, onCancel }) {
-  if (!open) return null;
-  return (
-    <div className="fixed z-50 inset-0 flex items-center justify-center bg-black bg-opacity-30">
-      <div className="bg-white rounded-lg shadow-xl p-7 w-full max-w-sm border border-slate-200">
-        <div className="text-xl font-semibold text-slate-800 mb-4">Resubmit Form?</div>
-        <div className="text-slate-600 mb-7">
-          Are you sure you want to resubmit this form? This will reset the status to pending.
-        </div>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-5 py-2 rounded font-medium bg-slate-100 hover:bg-slate-200 text-slate-700"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-5 py-2 rounded font-medium bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Yes, Resubmit
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-function EditFormModal({ open, onClose, formData, onSubmit }) {
-  if (!open) return null;
-  
-  return (
-    <div className="fixed z-50 inset-0 flex items-center justify-center bg-black bg-opacity-30">
-      <div className="bg-white rounded-lg shadow-xl p-7 w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-slate-200">
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-xl font-semibold text-slate-800">Edit and Resubmit Form</div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-2xl font-bold"
-          >
-            ×
-          </button>
-        </div>
-        <div className="text-slate-600 mb-7">
-          Please make changes based on the admin remarks.
-        </div>
-        <WebForm 
-          initialData={formData.data || formData} 
-          onSubmit={onSubmit}
-          isResubmission={true}
-          originalFormId={formData.id}
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function UserDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [modalFormData, setModalFormData] = useState(null);
-  const [editFormData, setEditFormData] = useState(null);
+
+  const [resubmitData, setResubmitData] = useState(null);
+  const [isResubmissionMode, setIsResubmissionMode] = useState(false);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState({ open: false, formData: null });
-  const [editConfirmModal, setEditConfirmModal] = useState({ open: false, formData: null });
 
   const [username, setUsername] = useState(localStorage.getItem("username") || "");
   const [role, setRole] = useState(localStorage.getItem("role") || "");
@@ -134,67 +76,89 @@ export default function UserDashboard() {
     if (role !== "Normal") navigate("/");
   }, [role, navigate]);
 
+  // Function to check if a form has already been resubmitted
+  const hasResubmittedForm = (formId) => {
+    const allForms = getForms();
+    return allForms.some(form => form.originalFormId === formId);
+  };
+
   // Show confirmation modal on submit attempt
   const handleFormSubmit = (formData) => {
-    setConfirmModal({ open: true, formData }); // Show confirm modal with data
+    // Check if this is a resubmission
+    if (isResubmissionMode && resubmitData) {
+      const isFinalRejection = resubmitData.finalStatus === "Rejected";
+      
+      if (isFinalRejection) {
+        // For final rejection, check if already resubmitted
+        if (hasResubmittedForm(resubmitData.id)) {
+          alert("You have already resubmitted this form. No further resubmissions are allowed.");
+          return;
+        }
+      }
+    }
+    
+    setConfirmModal({ open: true, formData });
   };
 
   // When user confirms the modal, actually submit the form
   const confirmAndSubmit = () => {
-    addForm({
+    const formDataToSubmit = {
       ...confirmModal.formData,
       username,
-      // requestedName and requestedDesignation are included via formData already
-    });
+    };
+
+    if (isResubmissionMode && resubmitData) {
+      const isFinalRejection = resubmitData.finalStatus === "Rejected";
+      
+      if (isFinalRejection) {
+        // Final rejection: Create a new form with reference to original
+        addForm({
+          ...formDataToSubmit,
+          originalFormId: resubmitData.id,
+          resubmitted: true,
+          resubmittedAt: new Date().toISOString(),
+          // Reset all statuses for new form
+          sivaStatus: "",
+          sivaStatusDate: "",
+          sivaStatusComment: "",
+          sivaStatusApprover: "",
+          gunaseelanStatus: "",
+          gunaseelanStatusDate: "",
+          gunaseelanStatusComment: "",
+          gunaseelanStatusApprover: "",
+          finalStatus: "Pending",
+          finalStatusDate: "",
+          naraStatusDate: "",
+        });
+      } else {
+        // Siva/Gunaseelan rejection: Update existing form
+        updateForm(resubmitData.id, {
+          ...formDataToSubmit,
+          // Reset statuses to pending
+          sivaStatus: "Pending",
+          sivaStatusDate: "",
+          sivaStatusComment: "",
+          gunaseelanStatus: "Pending",
+          gunaseelanStatusDate: "",
+          gunaseelanStatusComment: "",
+          finalStatus: "Pending",
+          finalStatusDate: "",
+          naraStatusDate: "",
+          resubmitted: true,
+          resubmittedAt: new Date().toISOString(),
+        });
+      }
+    } else {
+      // Normal submission
+      addForm(formDataToSubmit);
+    }
+
     setShowForm(false);
     setShowRequests(true);
+    setIsResubmissionMode(false);
+    setResubmitData(null);
     setUserForms(getForms().filter(f => f.username === username));
-    setConfirmModal({ open: false, formData: null }); // Hide modal
-    setModalFormData(null);
-  };
-
-  // Handle edit form resubmission
-  const handleEditFormSubmit = (formData) => {
-    setEditConfirmModal({ open: true, formData });
-  };
-
-  // Confirm and resubmit edit form
-  const confirmEditResubmit = () => {
-    const formData = editConfirmModal.formData;
-    // Find the original form and update it
-    const allForms = getForms();
-    const formIndex = allForms.findIndex(f => f.id === editFormData.id);
-    
-    if (formIndex !== -1) {
-      // Update the form with new data and reset status to pending
-      allForms[formIndex] = {
-        ...allForms[formIndex],
-        data: formData,
-        ...formData, // spread the form data at the top level too
-        finalStatus: "Pending",
-        sivaStatus: "Pending",
-        gunaseelanStatus: "Pending",
-        sivaStatusComment: null,
-        gunaseelanStatusComment: null,
-        sivaStatusDate: null,
-        gunaseelanStatusDate: null,
-        timestamp: new Date().toISOString(),
-        resubmitted: true,
-        resubmissionDate: new Date().toISOString()
-      };
-      
-      setForms(allForms);
-      setUserForms(allForms.filter(f => f.username === username));
-    }
-    
-    setShowEditModal(false);
-    setEditFormData(null);
-    setEditConfirmModal({ open: false, formData: null });
-  };
-
-  // Cancel edit confirmation
-  const cancelEditConfirmModal = () => {
-    setEditConfirmModal({ open: false, formData: null });
+    setConfirmModal({ open: false, formData: null });
   };
 
   // If user cancels, just close modal
@@ -211,9 +175,19 @@ export default function UserDashboard() {
 
   // Check if form can be edited (if it's rejected)
   const canEditForm = (form) => {
-    return form.finalStatus === "Rejected" || 
-           form.sivaStatus === "Rejected" || 
-           form.gunaseelanStatus === "Rejected";
+    // Can only edit if Siva or Gunaseelan rejected (not final rejection)
+    const isSivaOrGunaRejected = 
+      (form.sivaStatus === "Rejected" || form.gunaseelanStatus === "Rejected") &&
+      form.finalStatus !== "Rejected";
+    
+    const isFinalRejected = form.finalStatus === "Rejected";
+    
+    // For final rejection, check if already resubmitted
+    if (isFinalRejected) {
+      return !hasResubmittedForm(form.id);
+    }
+    
+    return isSivaOrGunaRejected;
   };
 
   const handleLogout = () => {
@@ -276,7 +250,12 @@ export default function UserDashboard() {
           }}
         >
           <button
-            onClick={() => { setShowForm(true); setShowRequests(false); }}
+            onClick={() => { 
+              setShowForm(true); 
+              setShowRequests(false);
+              setIsResubmissionMode(false);
+              setResubmitData(null);
+            }}
             style={{
               background: showForm ? "#1B275A" : "#2563eb",
               color: "white",
@@ -292,7 +271,10 @@ export default function UserDashboard() {
             Fill Web Form
           </button>
           <button
-            onClick={() => { setShowRequests(true); setShowForm(false); }}
+            onClick={() => { 
+              setShowRequests(true); 
+              setShowForm(false);
+            }}
             style={{
               background: showRequests ? "#1B275A" : "#2563eb",
               color: "white",
@@ -322,14 +304,12 @@ export default function UserDashboard() {
         }}>
           {/* Web Form */}
           {showForm && (
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              width: "100%"
-            }}>
-              <WebForm onSubmit={handleFormSubmit} />
-            </div>
+            <WebForm
+              onSubmit={handleFormSubmit}
+              initialData={resubmitData}
+              isResubmission={isResubmissionMode}
+              originalFormId={resubmitData?.id}
+            />
           )}
 
           {/* Requests Table */}
@@ -433,6 +413,26 @@ export default function UserDashboard() {
                                 marginTop: "2px"
                               }}>
                                 ↻ Resubmitted
+                              </div>
+                            )}
+                            {f.originalFormId && (
+                              <div style={{ 
+                                fontSize: "11px", 
+                                color: "#2563eb", 
+                                fontWeight: 500,
+                                marginTop: "2px"
+                              }}>
+                                ↗ Resubmission of #{f.originalFormId}
+                              </div>
+                            )}
+                            {f.finalStatus === "Rejected" && hasResubmittedForm(f.id) && (
+                              <div style={{ 
+                                fontSize: "11px", 
+                                color: "#dc2626", 
+                                fontWeight: 500,
+                                marginTop: "2px"
+                              }}>
+                                ✓ Already resubmitted
                               </div>
                             )}
                           </td>
@@ -539,11 +539,20 @@ export default function UserDashboard() {
                                     fontWeight: 500
                                   }}
                                   onClick={() => {
-                                    setEditFormData(f);
-                                    setShowEditModal(true);
+                                    const isFinalRejection = f.finalStatus === "Rejected";
+                                    
+                                    if (isFinalRejection && hasResubmittedForm(f.id)) {
+                                      alert("You have already resubmitted this form. No further resubmissions are allowed.");
+                                      return;
+                                    }
+                                    
+                                    setResubmitData(f);
+                                    setShowForm(true);
+                                    setShowRequests(false);
+                                    setIsResubmissionMode(true);
                                   }}
                                 >
-                                  ↻ Resubmit
+                                  {f.finalStatus === "Rejected" ? "New Request" : "↻ Resubmit"}
                                 </button>
                               )}
                             </div>
@@ -556,18 +565,11 @@ export default function UserDashboard() {
                   {/* View Form Modal */}
                   {showFormModal && modalFormData && (
                     <ReadOnlyWebForm
-                      data={modalFormData.data || modalFormData}
+                      data={modalFormData}
                       onClose={() => setShowFormModal(false)}
                     />
                   )}
                   
-                  {/* Edit Form Modal */}
-                  <EditFormModal
-                    open={showEditModal}
-                    onClose={() => setShowEditModal(false)}
-                    formData={editFormData}
-                    onSubmit={handleEditFormSubmit}
-                  />
                 </div>
               )}
             </div>
@@ -580,12 +582,6 @@ export default function UserDashboard() {
             onCancel={cancelConfirmModal}
           />
 
-          {/* --- Edit Confirmation Modal --- */}
-          <EditConfirmModal
-            open={editConfirmModal.open}
-            onConfirm={confirmEditResubmit}
-            onCancel={cancelEditConfirmModal}
-          />
         </div>
       </div>
     </div>

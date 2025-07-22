@@ -1,3 +1,5 @@
+// src/components/UserManagement.jsx
+
 import { useState } from "react";
 import { getUsers, addUser, removeUser, updateUser } from "../utils/api";
 

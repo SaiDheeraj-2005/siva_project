@@ -20,6 +20,153 @@ const setForms = (forms) => localStorage.setItem("forms", JSON.stringify(forms))
 const getSummaryData = () => JSON.parse(localStorage.getItem("summaryFact") || "[]");
 const setSummaryData = (data) => localStorage.setItem("summaryFact", JSON.stringify(data));
 
+// Global formatDate function
+const formatDate = (date = new Date()) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Function to convert DD/MM/YYYY string to Date object
+const convertToDate = (dateStr) => {
+  if (!dateStr) return null;
+  const [day, month, year] = dateStr.split('/').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+// ============= DATE PICKER MODAL =============
+function DatePickerModal({ isOpen, onClose, onSubmit, title, defaultDate = "" }) {
+  const [selectedDate, setSelectedDate] = useState(defaultDate || formatDate());
+
+  const handleSubmit = () => {
+    if (!selectedDate) {
+      alert("Please select a date.");
+      return;
+    }
+    onSubmit(selectedDate);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD for input
+  const convertToInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+
+  // Convert YYYY-MM-DD to DD/MM/YYYY
+  const convertFromInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0, left: 0, bottom: 0, right: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10000,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: "8px",
+        padding: "24px",
+        width: "400px",
+        maxWidth: "90vw"
+      }}>
+        <h3 style={{ marginBottom: "16px", fontSize: "18px", fontWeight: "bold" }}>
+          {title}
+        </h3>
+        <input
+          type="date"
+          value={convertToInputFormat(selectedDate)}
+          onChange={(e) => setSelectedDate(convertFromInputFormat(e.target.value))}
+          style={{
+            width: "100%",
+            padding: "8px",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            marginBottom: "16px",
+            fontSize: "16px"
+          }}
+        />
+        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 16px",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              background: "#f5f5f5",
+              cursor: "pointer"
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            style={{
+              padding: "8px 16px",
+              border: "none",
+              borderRadius: "4px",
+              background: "#2563eb",
+              color: "white",
+              cursor: "pointer"
+            }}
+          >
+            Confirm Date
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============= APPROVAL STAMP COMPONENT =============
+function ApprovalStamp({ status, date }) {
+  if (!status || status === "Pending") return null;
+
+  const isApproved = status === "Approved";
+  
+  return (
+    <div style={{
+      display: "inline-block",
+      border: `3px solid ${isApproved ? "#16a34a" : "#dc2626"}`,
+      borderRadius: "8px",
+      padding: "12px 20px",
+      margin: "10px 0",
+      transform: "rotate(-5deg)",
+      backgroundColor: isApproved ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)"
+    }}>
+      <div style={{
+        fontSize: "24px",
+        fontWeight: "bold",
+        color: isApproved ? "#16a34a" : "#dc2626",
+        textAlign: "center",
+        letterSpacing: "2px"
+      }}>
+        {isApproved ? "APPROVED" : "REJECTED"}
+      </div>
+      <div style={{
+        fontSize: "12px",
+        color: isApproved ? "#16a34a" : "#dc2626",
+        textAlign: "center",
+        marginTop: "4px"
+      }}>
+        <div>Designation: CMD</div>
+        <div>Date: {date || formatDate()}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function SuperAdminDashboard() {
   const [section, setSection] = useState("dashboard");
   const navigate = useNavigate();
@@ -89,7 +236,7 @@ function UserManagement() {
   const [form, setForm] = useState({ username: "", password: "", level: "Normal" });
   const [editIdx, setEditIdx] = useState(null);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState({}); // Track which passwords are visible
+  const [showPassword, setShowPassword] = useState({});
 
   function validateUserForm() {
     if (!form.username || form.username.length > 10) {
@@ -195,7 +342,6 @@ function UserManagement() {
       
       <h3 className="font-bold mb-4">Existing Users</h3>
       
-      {/* Table Format for Users */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse border border-gray-300">
           <thead className="bg-gray-100">
@@ -265,7 +411,6 @@ function UserManagement() {
 }
 
 // ============ SUMMARY FACT TAB ================
-// ============ SUMMARY FACT TAB ================
 function SummaryFact() {
   const [data, setData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -277,41 +422,31 @@ function SummaryFact() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Function to sync approved forms to summary data
   const syncApprovedForms = () => {
     const allForms = getForms();
     const approvedForms = allForms.filter(form => form.finalStatus === "Approved");
     
-    // Get existing summary data
     const existingSummaryData = getSummaryData();
-    
-    // Create a map of existing IDs for quick lookup
     const existingIds = new Set(existingSummaryData.map(item => item.id));
     
-    // Process approved forms
     const newSummaryEntries = approvedForms
       .filter(form => {
-        // Check if this form's factUserId is already in summary
         const formId = form.factUserId || form.data?.factUserId || '';
         return formId && !existingIds.has(formId);
       })
       .map(form => {
-        // Extract data from form - handle both direct properties and nested data
         const formData = form.data || form;
         const factUserId = form.factUserId || formData.factUserId || '';
         
-        // Get entity names (company list)
         const entityNames = Array.isArray(form.entityName || formData.entityName) 
           ? (form.entityName || formData.entityName).join(', ') 
           : form.entityName || formData.entityName || '';
         
-        // Get security group from form - check multiple possible locations
         const securityGroup = form.securityGroupOther || 
                             formData.securityGroupOther || 
                             form.data?.securityGroupOther ||
                             '';
         
-        // Also check if there's a form-specific localStorage key for security group
         const formSpecificKey = form.id ? `securityGroupOther_${form.id}` : null;
         const storedSecurityGroup = formSpecificKey ? localStorage.getItem(formSpecificKey) : null;
         
@@ -322,24 +457,18 @@ function SummaryFact() {
         };
       });
     
-    // Combine existing and new data
     const combinedData = [...existingSummaryData, ...newSummaryEntries];
     
-    // Update both state and localStorage
     setSummaryData(combinedData);
     setData(combinedData);
   };
 
-  // Initial load and sync
   useEffect(() => {
-    // Load existing summary data
     const existingData = getSummaryData();
     setData(existingData);
     
-    // Sync approved forms on mount
     syncApprovedForms();
     
-    // Set up event listener for form changes
     const handleStorageChange = (e) => {
       if (e.key === 'forms') {
         syncApprovedForms();
@@ -350,7 +479,6 @@ function SummaryFact() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Unique filter lists, dynamic based on unfiltered data
   const uniqueCompanies = useMemo(
     () => Array.from(new Set(data.map(item => item.companyList).filter(Boolean))).sort(),
     [data]
@@ -360,12 +488,10 @@ function SummaryFact() {
     [data]
   );
 
-  // Enhanced filtering logic with better string matching
   const filteredData = useMemo(() => {
     return data.filter(item => {
       const search = searchTerm.trim().toLowerCase();
       
-      // Improved search logic - more precise matching
       const matchesSearch = !search || [
         item.id,
         item.companyList,
@@ -374,7 +500,6 @@ function SummaryFact() {
         field && field.toString().toLowerCase().includes(search)
       );
       
-      // Exact matching for dropdown filters
       const matchesCompany = !filterCompany || item.companyList === filterCompany;
       const matchesGroup = !filterSecurityGroup || item.securityGroup === filterSecurityGroup;
       
@@ -382,7 +507,6 @@ function SummaryFact() {
     });
   }, [data, searchTerm, filterCompany, filterSecurityGroup]);
 
-  // Sorting logic
   const sortedData = useMemo(() => {
     if (!sortConfig.key) return filteredData;
     
@@ -396,17 +520,14 @@ function SummaryFact() {
     });
   }, [filteredData, sortConfig]);
 
-  // Pagination logic
   const totalPages = Math.ceil(sortedData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedData = sortedData.slice(startIndex, startIndex + itemsPerPage);
 
-  // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterCompany, filterSecurityGroup]);
 
-  // Sorting handler
   const handleSort = (key) => {
     setSortConfig(prevConfig => ({
       key,
@@ -414,7 +535,6 @@ function SummaryFact() {
     }));
   };
 
-  // Export logic with filtered data
   const handleExport = () => {
     const exportData = sortedData.map(item => ({
       'ID': item.id || '',
@@ -428,7 +548,6 @@ function SummaryFact() {
     XLSX.writeFile(wb, `SummaryFact_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // Import logic with better error handling
   const handleImport = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -468,11 +587,9 @@ function SummaryFact() {
     };
     reader.readAsBinaryString(file);
     
-    // Reset file input
     e.target.value = '';
   };
 
-  // Enhanced edit handlers
   const handleEdit = (idx) => {
     const actualIndex = startIndex + idx;
     setEditIdx(actualIndex);
@@ -489,7 +606,6 @@ function SummaryFact() {
       return;
     }
 
-    // Find index in original data and replace
     const realIdx = data.findIndex(row =>
       row.id === sortedData[editIdx].id &&
       row.companyList === sortedData[editIdx].companyList &&
@@ -513,7 +629,6 @@ function SummaryFact() {
     
     if (!window.confirm(`Delete entry "${itemToDelete.id}"?`)) return;
     
-    // Find in original data
     const realIdx = data.findIndex(row =>
       row.id === itemToDelete.id &&
       row.companyList === itemToDelete.companyList &&
@@ -526,14 +641,12 @@ function SummaryFact() {
       setSummaryData(newData);
       setData(newData);
       
-      // Adjust current page if necessary
       if (paginatedData.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       }
     }
   };
 
-  // Add new entry function
   const handleAddNew = () => {
     const newEntry = {
       id: `NEW_${Date.now()}`,
@@ -545,20 +658,16 @@ function SummaryFact() {
     setSummaryData(updated);
     setData(updated);
     
-    // Go to last page and edit the new entry
     const newTotalPages = Math.ceil(updated.length / itemsPerPage);
     setCurrentPage(newTotalPages);
     
-    // Wait for state update then start editing
     setTimeout(() => {
       const newEntryIndex = updated.length - 1;
-      const pageIndex = (newEntryIndex % itemsPerPage);
       setEditIdx(newEntryIndex);
       setEditRow({ ...newEntry });
     }, 100);
   };
 
-  // Clear filters
   const clearFilters = () => {
     setSearchTerm('');
     setFilterCompany('');
@@ -567,19 +676,16 @@ function SummaryFact() {
     setCurrentPage(1);
   };
 
-  // Sync approved forms button
   const handleSyncApprovedForms = () => {
     syncApprovedForms();
     alert('Summary data synced with approved forms');
   };
 
-  // Check if filters are active
   const hasActiveFilters = searchTerm || filterCompany || filterSecurityGroup;
   const noResults = sortedData.length === 0;
 
   return (
     <div className="space-y-6 bg-gray-50 min-h-screen p-6">
-      {/* Enhanced Header */}
       <div className="bg-white rounded-xl shadow-sm border p-6">
         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
           <div>
@@ -648,7 +754,6 @@ function SummaryFact() {
         </div>
       </div>
 
-      {/* Enhanced Filters */}
       <div className="bg-white rounded-xl shadow-sm border p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Advanced Filters</h3>
@@ -663,7 +768,6 @@ function SummaryFact() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Enhanced Search */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
@@ -685,7 +789,6 @@ function SummaryFact() {
             )}
           </div>
 
-          {/* Company Filter */}
           <div className="relative">
             <select
               value={filterCompany}
@@ -701,7 +804,6 @@ function SummaryFact() {
             </select>
           </div>
 
-          {/* Security Group Filter */}
           <div className="relative">
             <select
               value={filterSecurityGroup}
@@ -717,7 +819,6 @@ function SummaryFact() {
             </select>
           </div>
 
-          {/* Items per page */}
           <div className="relative">
             <select
               value={itemsPerPage}
@@ -736,30 +837,28 @@ function SummaryFact() {
           </div>
         </div>
 
-        {/* Filter Summary */}
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-          {hasActiveFilters && (
+        {hasActiveFilters && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <div className="text-blue-600 font-medium">Active filters:</div>
-          )}
-          {searchTerm && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              Search: "{searchTerm}"
-            </span>
-          )}
-          {filterCompany && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              Company: {filterCompany}
-            </span>
-          )}
-          {filterSecurityGroup && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-              Security: {filterSecurityGroup}
-            </span>
-          )}
-        </div>
+            {searchTerm && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Search: "{searchTerm}"
+              </span>
+            )}
+            {filterCompany && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Company: {filterCompany}
+              </span>
+            )}
+            {filterSecurityGroup && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                Security: {filterSecurityGroup}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Enhanced Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {noResults ? (
           <div className="flex flex-col items-center justify-center py-16">
@@ -792,7 +891,6 @@ function SummaryFact() {
           </div>
         ) : (
           <>
-            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -911,7 +1009,6 @@ function SummaryFact() {
               </table>
             </div>
 
-            {/* Enhanced Pagination */}
             {totalPages > 1 && (
               <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
@@ -936,7 +1033,6 @@ function SummaryFact() {
                       Previous
                     </button>
                     
-                    {/* Page numbers */}
                     <div className="flex gap-1">
                       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                         let pageNum;
@@ -988,7 +1084,6 @@ function SummaryFact() {
         )}
       </div>
 
-      {/* Enhanced Import Instructions */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
@@ -1030,21 +1125,6 @@ function SummaryFact() {
   );
 }
 
-// Global formatDate function used across components
-const formatDate = (date = new Date()) => {
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
-
-// Function to convert DD/MM/YYYY string to Date object
-const convertToDate = (dateStr) => {
-  if (!dateStr) return null;
-  const [day, month, year] = dateStr.split('/').map(Number);
-  return new Date(year, month - 1, day);
-};
-
 // ============ WEB FORM SUBMISSIONS ===========
 function SubmittedForms() {
   const [forms, setFormsState] = useState([]);
@@ -1052,19 +1132,16 @@ function SubmittedForms() {
     function syncForms() {
       const pendingForms = getForms().filter(f => f.finalStatus === "Pending");
       
-      // Sort by most recent submission (newest first)
       const sortedForms = pendingForms.sort((a, b) => {
-        // If forms have submission dates, sort by those
         if (a.submissionDate && b.submissionDate) {
           const dateObjA = convertToDate(a.submissionDate);
           const dateObjB = convertToDate(b.submissionDate);
           
           if (dateObjA && dateObjB) {
-            return dateObjB - dateObjA; // Newest first
+            return dateObjB - dateObjA;
           }
         }
         
-        // Fallback to form ID or index for consistent ordering
         return (b.id || 0) - (a.id || 0);
       });
       
@@ -1083,7 +1160,6 @@ function SubmittedForms() {
     allForms[globalIdx] = updatedForm;
     setForms(allForms);
     
-    // Re-sync and sort forms after update
     const pendingForms = allForms.filter(f => f.finalStatus === "Pending");
     const sortedForms = pendingForms.sort((a, b) => {
       if (a.submissionDate && b.submissionDate) {
@@ -1121,7 +1197,6 @@ function FilteredForms({ status, title }) {
     function syncForms() {
       const filteredForms = getForms().filter(f => f.finalStatus === status);
       
-      // Sort by most recent date (newest first)
       const sortedForms = filteredForms.sort((a, b) => {
         let dateA, dateB;
         
@@ -1137,13 +1212,12 @@ function FilteredForms({ status, title }) {
         if (!dateA) return 1;
         if (!dateB) return -1;
         
-        // Convert DD/MM/YYYY to Date object for comparison
         const dateObjA = convertToDate(dateA);
         const dateObjB = convertToDate(dateB);
         
         if (!dateObjA || !dateObjB) return 0;
         
-        return dateObjB - dateObjA; // Newest first
+        return dateObjB - dateObjA;
       });
       
       setFormsState(sortedForms);
@@ -1161,7 +1235,6 @@ function FilteredForms({ status, title }) {
     allForms[globalIdx] = updatedForm;
     setForms(allForms);
     
-    // Re-sync and sort forms after update
     const filteredForms = allForms.filter(f => f.finalStatus === status);
     const sortedForms = filteredForms.sort((a, b) => {
       let dateA, dateB;
@@ -1283,21 +1356,17 @@ function RejectionCommentModal({ isOpen, onClose, onSubmit, title }) {
 
 // ============= FILE VIEWER MODAL =============
 function FileViewerModal({ isOpen, onClose, fileName, onRemove }) {
-  // Function to handle actual file download
   const handleDownload = () => {
-    // Create a blob with some sample content (in real app, this would be the actual file data)
     const sampleContent = `This is the approved file: ${fileName}\nDownloaded on: ${new Date().toLocaleString()}`;
     const blob = new Blob([sampleContent], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     
-    // Create a temporary link element and click it to trigger download
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
     
-    // Clean up
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   };
@@ -1390,15 +1459,24 @@ function FileViewerModal({ isOpen, onClose, fileName, onRemove }) {
 // ============= SINGLE FORM ITEM (View, Approve, Upload, Comment) ============
 function FormItem({ form, idx, updateForm, readonly }) {
   const username = localStorage.getItem("username");
+  const role = localStorage.getItem("role");
   const isSiva = ["Siva", "HOD"].includes(username);
   const isGuna = username === "Gunaseelan";
+  const isAdmin = role === "Admin";
+  const isSuperAdmin = role === "SuperAdmin";
   const canEditSiva = !readonly && isSiva;
   const canEditGuna = !readonly && isGuna;
+  const canEditFinal = !readonly && (username === "Siva" || username === "Gunaseelan");
 
   const [showFormModal, setShowFormModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [rejectionType, setRejectionType] = useState("");
   const [showFileViewer, setShowFileViewer] = useState(false);
+  const [showFileDatePicker, setShowFileDatePicker] = useState(false);
+  const [showFinalDatePicker, setShowFinalDatePicker] = useState(false);
+  const [showUserAccessDatePicker, setShowUserAccessDatePicker] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+    const [pendingFinalStatus, setPendingFinalStatus] = useState(null);
   const formRef = useRef();
 
   // Check if final status can be changed
@@ -1418,26 +1496,23 @@ function FormItem({ form, idx, updateForm, readonly }) {
       return;
     }
 
+    // For final status changes (Approved/Rejected), show date picker
+    if (field === "finalStatus" && (value === "Approved" || value === "Rejected")) {
+      // Store the pending status value in state instead of in the form
+      setPendingFinalStatus(value);
+      setShowFinalDatePicker(true);
+      return;
+    }
+
     const currentDate = formatDate();
-    const currentTimestamp = Date.now(); // Add timestamp for proper sorting
+    const currentTimestamp = Date.now();
     
     let updates = {
       [field]: value,
       [`${field}Approver`]: username,
       [`${field}Date`]: currentDate,
-      [`${field}Timestamp`]: currentTimestamp, // Add timestamp field
+      [`${field}Timestamp`]: currentTimestamp,
     };
-
-    // Add final approved/rejected date and timestamp when final status is set
-    if (field === "finalStatus") {
-      if (value === "Approved") {
-        updates.finalApprovedDate = currentDate;
-        updates.finalApprovedTimestamp = currentTimestamp;
-      } else if (value === "Rejected") {
-        updates.finalRejectedDate = currentDate;
-        updates.finalRejectedTimestamp = currentTimestamp;
-      }
-    }
 
     updateForm(idx, updates);
   };
@@ -1459,13 +1534,42 @@ function FormItem({ form, idx, updateForm, readonly }) {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const uploadDate = formatDate();
-      
-      updateForm(idx, { 
-        approvedFile: file.name,
-        approvedFileUploadDate: uploadDate
-      });
+      // Store file temporarily and show date picker
+      setPendingFile(file);
+      setShowFileDatePicker(true);
     }
+  };
+
+  const handleFileUploadWithDate = (selectedDate) => {
+    if (pendingFile) {
+      updateForm(idx, { 
+        approvedFile: pendingFile.name,
+        approvedFileUploadDate: selectedDate
+      });
+      setPendingFile(null);
+    }
+  };
+
+  const handleFinalStatusDate = (selectedDate) => {
+    if (pendingFinalStatus) {
+      const updates = {
+        finalStatus: pendingFinalStatus,
+        finalStatusApprover: username,
+        finalStatusDate: selectedDate,
+        [`final${pendingFinalStatus}Date`]: selectedDate,
+        [`final${pendingFinalStatus}Timestamp`]: Date.now(),
+        naraStatusDate: selectedDate // For the approval stamp in the form
+      };
+      
+      updateForm(idx, updates);
+      setPendingFinalStatus(null);
+    }
+  };
+
+  const handleUserAccessDate = (selectedDate) => {
+    updateForm(idx, { 
+      userAccessDate: selectedDate 
+    });
   };
 
   const handleFileRemove = () => {
@@ -1488,23 +1592,50 @@ function FormItem({ form, idx, updateForm, readonly }) {
   return (
     <>
       <div className="border rounded-lg p-6 mb-6 bg-white shadow-sm">
-        {/* User Info */}
+        {/* User Info with User Access Date */}
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-lg font-semibold text-gray-900">User: {form.username}</h4>
-              <p className="text-sm text-gray-500">Form ID: {form.id}</p>
+            <h4 className="text-lg font-semibold text-gray-900">User: {form.username}</h4>
+            <p className="text-sm text-gray-500">Form ID: {form.id}</p>
+            </div>
+            <div className="flex items-center gap-8">
+            {/* User Access Date */}
+            <div className="flex items-center gap-2">
+                <strong className="text-gray-700">User Access Date:</strong>
+                {!form.userAccessDate ? (
+                <button
+                    onClick={() => setShowUserAccessDatePicker(true)}
+                    disabled={readonly}
+                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 disabled:opacity-50"
+                >
+                    Select Date
+                </button>
+                ) : (
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{form.userAccessDate}</span>
+                    {!readonly && (
+                    <button
+                        onClick={() => setShowUserAccessDatePicker(true)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                        Change
+                    </button>
+                    )}
+                </div>
+                )}
             </div>
             <div className="text-right">
-              <strong className="text-gray-700">Submitted Form:</strong>
-              <button 
+                <strong className="text-gray-700">Submitted Form:</strong>
+                <button 
                 className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
                 onClick={() => setShowFormModal(true)}
-              >
+                >
                 View Form
-              </button>
+                </button>
             </div>
-          </div>
+            </div>
+        </div>
         </div>
 
         {/* Status Grid - Professional Layout */}
@@ -1514,7 +1645,7 @@ function FormItem({ form, idx, updateForm, readonly }) {
             <div className="mb-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Final Status</label>
               <select
-                disabled={readonly || !canChangeFinalStatus}
+                disabled={readonly || !canChangeFinalStatus || !canEditFinal}
                 value={form.finalStatus || "Pending"}
                 onChange={e => handleStatusChange("finalStatus", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
@@ -1697,6 +1828,33 @@ function FormItem({ form, idx, updateForm, readonly }) {
         onClose={() => setShowFileViewer(false)}
         fileName={form.approvedFile}
         onRemove={handleFileRemove}
+      />
+
+      {/* File Upload Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showFileDatePicker}
+        onClose={() => {
+          setShowFileDatePicker(false);
+          setPendingFile(null);
+        }}
+        onSubmit={handleFileUploadWithDate}
+        title="Select File Upload Date"
+      />
+
+      {/* Final Status Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showFinalDatePicker}
+        onClose={() => setShowFinalDatePicker(false)}
+        onSubmit={handleFinalStatusDate}
+        title="Select Approval/Rejection Date"
+      />
+
+      {/* User Access Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showUserAccessDatePicker}
+        onClose={() => setShowUserAccessDatePicker(false)}
+        onSubmit={handleUserAccessDate}
+        title="Select User Access Date"
       />
     </>
   );

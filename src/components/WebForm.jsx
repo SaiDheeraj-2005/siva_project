@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { addForm } from "../utils/api"; // <-- Import the latest API
 
 // Styles
 const inputStyle = {
@@ -110,7 +109,7 @@ const ValidationPopup = ({ message, show }) => {
   );
 };
 
-const WebForm = ({ onSubmit }) => {
+const WebForm = ({ onSubmit, initialData = null, isResubmission = false, originalFormId = null }) => {
   const [formData, setFormData] = useState(initialState);
   const [requestedName, setRequestedName] = useState("");
   const [requestedDesignation, setRequestedDesignation] = useState("");
@@ -119,6 +118,38 @@ const WebForm = ({ onSubmit }) => {
   const [showErrors, setShowErrors] = useState(false);
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   const entityBoxRef = useRef(null);
+  
+
+  // Load initial data for resubmissions
+  useEffect(() => {
+    if (initialData && isResubmission) {
+      // Handle both nested data structure and flat structure
+      const data = initialData.data ? { ...initialData.data, ...initialData } : initialData;
+      
+      setFormData({
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        department: data.department || "",
+        designation: data.designation || "",
+        employeeCode: data.employeeCode || "",
+        emailAddress: data.emailAddress || "",
+        officeLocation: data.officeLocation || "",
+        reportedTo: data.reportedTo || "",
+        factUserId: data.factUserId || "",
+        entityName: Array.isArray(data.entityName) ? data.entityName : [],
+        noOfDaysBackdated: data.noOfDaysBackdated || "",
+        year: data.year || "",
+        securityDept: Array.isArray(data.securityDept) ? data.securityDept : [],
+        securityCat: Array.isArray(data.securityCat) ? data.securityCat : [],
+        moduleName: data.moduleName || "",
+        featuresName: data.featuresName || "",
+        reason: data.reason || "",
+      });
+      
+      setRequestedName(data.requestedName || "");
+      setRequestedDesignation(data.requestedDesignation || "");
+    }
+  }, [initialData, isResubmission]);
 
   // Close entity dropdown on click outside
   useEffect(() => {
@@ -264,6 +295,8 @@ const WebForm = ({ onSubmit }) => {
         ...formData,
         requestedName,
         requestedDesignation,
+        // Include original form ID if this is a resubmission
+        ...(isResubmission && originalFormId ? { originalFormId } : {}),
       });
     }
   };
@@ -294,6 +327,9 @@ const WebForm = ({ onSubmit }) => {
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
   }, []);
+
+  // Determine if this is a final rejection new request
+  const isFinalRejectionNewRequest = isResubmission && !originalFormId && initialData?.finalStatus === "Rejected";
 
   return (
     <div
@@ -359,6 +395,16 @@ const WebForm = ({ onSubmit }) => {
         </table>
         <p style={{ fontSize: "12px", marginBottom: "20px", lineHeight: "1.5" }}>
           This form should be completed when requesting authorisation for new access, additional access, for modification of any existing access, removal of access (permanent/dormant) if a user leaves the department or any other matters related to <strong>FACT ERP.NG</strong>
+          {isResubmission && originalFormId && (
+            <span style={{ display: "block", marginTop: "8px", color: "#059669", fontWeight: "600" }}>
+              🔄 This is a resubmission. Please make necessary changes based on admin remarks.
+            </span>
+          )}
+          {isFinalRejectionNewRequest && (
+            <span style={{ display: "block", marginTop: "8px", color: "#2563eb", fontWeight: "600" }}>
+              📝 Creating a new request based on the rejected form. This is your only chance to resubmit.
+            </span>
+          )}
         </p>
 
         {/* Employee Details */}
@@ -876,7 +922,11 @@ const WebForm = ({ onSubmit }) => {
               fontSize: "16px",
             }}
           >
-            Submit Form
+            {isFinalRejectionNewRequest 
+              ? "Submit New Request" 
+              : isResubmission 
+              ? "Resubmit Form" 
+              : "Submit Form"}
           </button>
         </div>
       </form>
