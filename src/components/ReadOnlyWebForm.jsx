@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 // Simulated API function - replace with your actual implementation
 const updateForm = (formId, updates) => {
@@ -9,6 +10,12 @@ const updateForm = (formId, updates) => {
 // A4 px size at 96dpi
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
+
+// Add MONTHS constant (same as in WebForm)
+const MONTHS = [
+  "Janua", "Febru", "March", "April", "Mayyy", "Junes",
+  "Julys", "Augus", "Septe", "Octob", "Novem", "Decem"
+];
 
 // Dynamic input style function
 const getInputStyle = (canEdit) => ({
@@ -38,6 +45,7 @@ const fieldContainerStyle = {
   alignItems: "center",
   gap: "0px",
   width: "100%",
+  position: "relative",
 };
 
 const checkboxLabel = {
@@ -145,6 +153,10 @@ export default function ReadOnlyWebForm({
   onClose = () => console.log('Close clicked'), 
 }) {
   const formRef = useRef();
+  const entityBoxRef = useRef(null);
+  
+  // Add state for entity dropdown
+  const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   
   // Enhanced data handling to ensure all fields are properly extracted
   let d = {};
@@ -241,6 +253,17 @@ export default function ReadOnlyWebForm({
     }
   }, [d.id]);
 
+  // Close entity dropdown on click outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (entityBoxRef.current && !entityBoxRef.current.contains(e.target)) {
+        setEntityDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   // Save to localStorage helper function
   const saveToLocalStorage = (dataToSave) => {
     if (!d.id) return;
@@ -297,9 +320,6 @@ export default function ReadOnlyWebForm({
         [fieldName]: value
       };
       
-      // REMOVED: Auto-save to localStorage on every change
-      // Now only saves when save button is clicked
-      
       return newData;
     });
     
@@ -324,11 +344,29 @@ export default function ReadOnlyWebForm({
         [fieldName]: newArray
       };
       
-      // REMOVED: Auto-save to localStorage
-      // Now only saves when save button is clicked
-      
       return newData;
     });
+  };
+
+  // Entity multi-select logic (copied from WebForm)
+  const handleEntitySelect = (val) => {
+    if (!canEditFields) return;
+    if (editedData.entityName.includes(val)) return;
+    if (editedData.entityName.length >= 5) return;
+    
+    setEditedData((prev) => ({
+      ...prev,
+      entityName: [...prev.entityName, val],
+    }));
+  };
+  
+  const handleEntityRemove = (val) => {
+    if (!canEditFields) return;
+    
+    setEditedData((prev) => ({
+      ...prev,
+      entityName: prev.entityName.filter((item) => item !== val),
+    }));
   };
 
   // Enhanced PDF download function
@@ -731,20 +769,157 @@ export default function ReadOnlyWebForm({
                 placeholder="Max 10 characters only"
               />
             </div>
+            {/* Entity Multi-Select - Updated for Admin/SuperAdmin */}
             <div style={fieldContainerStyle}>
               <label style={labelStyle}>Entity Name: *</label>
-              <div style={{
-                ...getInputStyle(canEditFields),
-                display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                fontSize: "12px",
-                lineHeight: "1.4",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
-              }}>
-                {Array.isArray(editedData.entityName) ? editedData.entityName.join(", ") : editedData.entityName || "Select Entity Name"}
-              </div>
+              {canEditFields ? (
+                <div ref={entityBoxRef} style={{ position: "relative", flex: 1 }}>
+                  <div
+                    style={{
+                      ...getInputStyle(canEditFields),
+                      minHeight: 43,
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      cursor: "pointer",
+                      padding: "4px 36px 4px 8px",
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                    tabIndex={0}
+                    onClick={() => setEntityDropdownOpen((v) => !v)}
+                  >
+                    {editedData.entityName.length === 0 && (
+                      <span style={{ color: "#aaa", fontSize: 14 }}>Select Entity Name</span>
+                    )}
+                    {editedData.entityName.map((item) => (
+                      <span key={item}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          background: "#e2e8f0",
+                          borderRadius: "10px",
+                          padding: "1px 7px",
+                          fontSize: 12,
+                          marginRight: 2,
+                        }}
+                      >
+                        {item}
+                        {entityDropdownOpen && (
+                          <button type="button"
+                            style={{
+                              border: "none",
+                              background: "none",
+                              color: "#e11d48",
+                              marginLeft: 4,
+                              cursor: "pointer",
+                              fontWeight: "bold",
+                              fontSize: 12,
+                              lineHeight: 1,
+                              padding: 0,
+                            }}
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleEntityRemove(item);
+                            }}
+                            tabIndex={-1}
+                            aria-label={`Remove ${item}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {/* Chevron icon */}
+                    <span
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        fontSize: 20,
+                        color: "#888",
+                        cursor: "pointer",
+                        zIndex: 12,
+                        userSelect: "none",
+                        background: "transparent",
+                        padding: "0 2px",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setEntityDropdownOpen(v => !v);
+                      }}
+                      tabIndex={0}
+                      aria-label={entityDropdownOpen ? "Collapse dropdown" : "Expand dropdown"}
+                    >
+                      {entityDropdownOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    </span>
+                  </div>
+                  {entityDropdownOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "110%",
+                        left: 0,
+                        right: 0,
+                        zIndex: 11,
+                        background: "#fff",
+                        border: "1px solid #cbd5e1",
+                        borderTop: "none",
+                        boxShadow: "0 6px 16px #0002",
+                        maxHeight: 130,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {MONTHS.filter((item) => !editedData.entityName.includes(item)).map((item) => (
+                        <div
+                          key={item}
+                          onClick={() => handleEntitySelect(item)}
+                          style={{
+                            padding: "8px 15px",
+                            cursor: editedData.entityName.length >= 5 ? "not-allowed" : "pointer",
+                            color: editedData.entityName.length >= 5 ? "#aaa" : "#222",
+                            fontSize: 14,
+                            userSelect: "none",
+                          }}
+                          tabIndex={0}
+                        >
+                          {item}
+                        </div>
+                      ))}
+                      {editedData.entityName.length >= 5 && (
+                        <div
+                          style={{
+                            padding: "8px 15px",
+                            color: "#aaa",
+                            fontSize: 13,
+                            textAlign: "center",
+                            userSelect: "none",
+                          }}
+                        >
+                          Max 5 selected
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{
+                  ...getInputStyle(canEditFields),
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  fontSize: "12px",
+                  lineHeight: "1.4",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }}>
+                  {Array.isArray(editedData.entityName) ? editedData.entityName.join(", ") : editedData.entityName || "Select Entity Name"}
+                </div>
+              )}
             </div>
             <div style={fieldContainerStyle}>
               <label style={{...labelStyle, display: "flex", flexDirection: "column", lineHeight: "1.2"}}>
