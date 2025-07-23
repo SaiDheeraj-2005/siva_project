@@ -73,9 +73,33 @@ const popupArrowStyle = {
   borderTop: "5px solid #ef4444",
 };
 
-const MONTHS = [
-  "Janua", "Febru", "March", "April", "Mayyy", "Junes",
-  "Julys", "Augus", "Septe", "Octob", "Novem", "Decem"
+const COMPANY_OPTIONS = [
+  { label: "AZIAN ENGINEERING & FABRICATION SDN BHD", value: "AEF" },
+  { label: "AGNI SOLUTION SDN BHD",                 value: "ASSB" },
+  { label: "ATURAN GANDA SDN BHD",                 value: "AGSB" },
+  { label: "BERAPIT FREIGHT TRAIN SDN BHD",        value: "BFT" },
+  { label: "BERAPIT MOBILITY SDN BHD",             value: "BM"  },
+  { label: "LMG RAIL CAR SDN BHD",                 value: "LRC" },
+  { label: "ICE RAIL SDN BHD",                     value: "IR"  },
+  { label: "SMH RAIL INDIA SDN BHD",               value: "SRI" },
+  { label: "LADANG SUNGAI GETAH SDN BHD",          value: "LSG" },
+  { label: "LMG LOCOMOTIVE SDN BHD",               value: "LLSB"},
+  { label: "LMG RAIL CAR TANZANIA LIMITED",        value: "LRCT"},
+  { label: "NH ENERGY MOBILITY SDN BHD",           value: "NEM" },
+  { label: "RL RAILWAY ENGINEERING SDN BHD",       value: "RLE" },
+  { label: "RS WHEELS SDN BHD",                    value: "RW"  },
+  { label: "SMH RAIL ENGINEERING CO., LTD.",       value: "SRECL"},
+  { label: "SMH RAIL SDN BHD",                     value: "SR"  },
+  { label: "SMH RAIL THAILAND SDN BHD",            value: "SRT" },
+  { label: "SMH RAIL ENGINEERING COMPANY LIMITED", value: "SREC"},
+  { label: "SMH RAIL ENGINEERING (INDIA) PVT LTD", value: "SREIP"},
+  { label: "SMH RAIL INDIA PVT LTD",               value: "SRIP"},
+  { label: "SMH RAIL ZAMBIA BRANCH LIMITED",       value: "SRZB"},
+  { label: "TB PROPERTIES SDN BHD",                value: "TBP" },
+  { label: "SMH RAIL INFRASTRUCTURE SDN BHD",      value: "SRISB"},
+  { label: "TELEWIRA TEGAS SDN BHD",               value: "TTSB"},
+  { label: "TUJUAN BANGGA SDN BHD",                value: "TBS"  },
+  { label: "TUMPUAN SEHATI SDN BHD",               value: "TSSB"},
 ];
 
 const initialState = {
@@ -599,21 +623,23 @@ const WebForm = ({ onSubmit, initialData = null, isResubmission = false, origina
                     overflowY: "auto",
                   }}
                 >
-                  {MONTHS.filter((item) => !formData.entityName.includes(item)).map((item) => (
-                    <div
-                      key={item}
-                      onClick={() => handleEntitySelect(item)}
-                      style={{
-                        padding: "8px 15px",
-                        cursor: formData.entityName.length >= 5 ? "not-allowed" : "pointer",
-                        color: formData.entityName.length >= 5 ? "#aaa" : "#222",
-                        fontSize: 14,
-                        userSelect: "none",
-                      }}
-                      tabIndex={0}
-                    >
-                      {item}
-                    </div>
+                  {COMPANY_OPTIONS
+                    .filter(opt => !formData.entityName.includes(opt.value))
+                    .map(opt => (
+                      <div
+                        key={opt.value}
+                        onClick={() => handleEntitySelect(opt.value)}
+                        style={{
+                          padding: "8px 15px",
+                          cursor: formData.entityName.length >= 5 ? "not-allowed" : "pointer",
+                          color:  formData.entityName.length >= 5 ? "#aaa" : "#222",
+                          fontSize: 14,
+                          userSelect: "none",
+                        }}
+                        tabIndex={0}
+                      >
+                        {opt.label}
+                      </div>
                   ))}
                   {formData.entityName.length >= 5 && (
                     <div

@@ -40,6 +40,14 @@ export default function Sidebar({ section, setSection, role }) {
         </li>
         <li>
           <button
+            className={`w-full text-left ${section === "staffRejected" ? "font-bold text-blue-700" : ""}`}
+            onClick={() => setSection("staffRejected")}
+          >
+            Staff Rejected Forms
+          </button>
+        </li>
+        <li>
+          <button
             className={`w-full text-left ${section === "approved" ? "font-bold text-blue-700" : ""}`}
             onClick={() => setSection("approved")}
           >
@@ -53,7 +61,7 @@ export default function Sidebar({ section, setSection, role }) {
           >
             View Rejected Forms
           </button>
-          </li>
+        </li>
         {/* Summary tab for SuperAdmin */}
         {role === "SuperAdmin" && (
           <li>

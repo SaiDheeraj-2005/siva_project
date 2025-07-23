@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit, Eye } from "lucide-react";
 
 // Simulated API function - replace with your actual implementation
 const updateForm = (formId, updates) => {
@@ -11,10 +11,34 @@ const updateForm = (formId, updates) => {
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
 
-// Add MONTHS constant (same as in WebForm)
-const MONTHS = [
-  "Janua", "Febru", "March", "April", "Mayyy", "Junes",
-  "Julys", "Augus", "Septe", "Octob", "Novem", "Decem"
+// Add COMPANY_OPTIONS constant (same as in WebForm)
+const COMPANY_OPTIONS = [
+  { label: "AZIAN ENGINEERING & FABRICATION SDN BHD", value: "AEF" },
+  { label: "AGNI SOLUTION SDN BHD", value: "ASSB" },
+  { label: "ATURAN GANDA SDN BHD", value: "AGSB" },
+  { label: "BERAPIT FREIGHT TRAIN SDN BHD", value: "BFT" },
+  { label: "BERAPIT MOBILITY SDN BHD", value: "BM" },
+  { label: "LMG RAIL CAR SDN BHD", value: "LRC" },
+  { label: "ICE RAIL SDN BHD", value: "IR" },
+  { label: "SMH RAIL INDIA SDN BHD", value: "SRI" },
+  { label: "LADANG SUNGAI GETAH SDN BHD", value: "LSG" },
+  { label: "LMG LOCOMOTIVE SDN BHD", value: "LLSB" },
+  { label: "LMG RAIL CAR TANZANIA LIMITED", value: "LRCT" },
+  { label: "NH ENERGY MOBILITY SDN BHD", value: "NEM" },
+  { label: "RL RAILWAY ENGINEERING SDN BHD", value: "RLE" },
+  { label: "RS WHEELS SDN BHD", value: "RW" },
+  { label: "SMH RAIL ENGINEERING CO., LTD.", value: "SRECL" },
+  { label: "SMH RAIL SDN BHD", value: "SR" },
+  { label: "SMH RAIL THAILAND SDN BHD", value: "SRT" },
+  { label: "SMH RAIL ENGINEERING COMPANY LIMITED", value: "SREC" },
+  { label: "SMH RAIL ENGINEERING (INDIA) PVT LTD", value: "SREIP" },
+  { label: "SMH RAIL INDIA PVT LTD", value: "SRIP" },
+  { label: "SMH RAIL ZAMBIA BRANCH LIMITED", value: "SRZB" },
+  { label: "TB PROPERTIES SDN BHD", value: "TBP" },
+  { label: "SMH RAIL INFRASTRUCTURE SDN BHD", value: "SRISB" },
+  { label: "TELEWIRA TEGAS SDN BHD", value: "TTSB" },
+  { label: "TUJUAN BANGGA SDN BHD", value: "TBS" },
+  { label: "TUMPUAN SEHATI SDN BHD", value: "TSSB" }
 ];
 
 // Dynamic input style function
@@ -158,6 +182,9 @@ export default function ReadOnlyWebForm({
   // Add state for entity dropdown
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
   
+  // Add state for edit mode toggle
+  const [isEditMode, setIsEditMode] = useState(false);
+  
   // Enhanced data handling to ensure all fields are properly extracted
   let d = {};
   
@@ -204,12 +231,13 @@ export default function ReadOnlyWebForm({
   const userRole = localStorage.getItem("role") || "Normal";
   
   // Helper function to check if user can edit (case-insensitive)
-  const canEdit = () => {
+  const canEditRole = () => {
     const role = userRole?.toLowerCase();
     return role === "admin" || role === "superadmin";
   };
   
-  const canEditFields = canEdit();
+  // Combined check: user has permission AND edit mode is enabled
+  const canEditFields = canEditRole() && isEditMode;
   
   // Initialize state with the data
   const [editedData, setEditedData] = useState({
@@ -287,7 +315,7 @@ export default function ReadOnlyWebForm({
   };
 
   const handleSave = () => {
-    if (d.id && canEditFields) {
+    if (d.id && canEditRole() && isEditMode) {
       // Save all edited data to API
       updateForm(d.id, editedData);
       
@@ -295,6 +323,9 @@ export default function ReadOnlyWebForm({
       saveToLocalStorage(editedData);
       
       console.log('Saved edited data:', editedData);
+      
+      // Exit edit mode
+      setIsEditMode(false);
       
       // Show save notification
       setSaveNotification(true);
@@ -552,7 +583,7 @@ export default function ReadOnlyWebForm({
           zIndex: 10,
           display: "flex",
           alignItems: "center",
-          gap: 14,
+          gap: 10,
         }}>
           <button 
             type="button"
@@ -570,24 +601,65 @@ export default function ReadOnlyWebForm({
           >
             📥
           </button>
-          {canEditFields && (
-            <button
-              type="button"
-              onClick={handleSave}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#059669",
-                padding: "2px",
-                fontSize: "22px",
-                marginRight: "8px"
-              }}
-              title="Save changes"
-              aria-label="Save changes"
-            >
-              💾
-            </button>
+          {canEditRole() && (
+            <>
+              {/* Edit/View Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsEditMode(!isEditMode)}
+                style={{
+                  background: isEditMode ? "#3b82f6" : "#6b7280",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                }}
+                title={isEditMode ? "Switch to view mode" : "Switch to edit mode"}
+              >
+                {isEditMode ? (
+                  <>
+                    <Eye size={16} />
+                    View
+                  </>
+                ) : (
+                  <>
+                    <Edit size={16} />
+                    Edit
+                  </>
+                )}
+              </button>
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  style={{
+                    background: "#059669",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    transition: "all 0.2s ease",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                  }}
+                  title="Save changes"
+                  aria-label="Save changes"
+                >
+                  💾 Save
+                </button>
+              )}
+            </>
           )}
           <button
             onClick={onClose}
@@ -623,6 +695,28 @@ export default function ReadOnlyWebForm({
             gap: "8px"
           }}>
             ✓ Changes saved successfully!
+          </div>
+        )}
+
+        {/* Edit mode indicator */}
+        {isEditMode && (
+          <div style={{
+            position: "absolute",
+            top: "60px",
+            left: "20px",
+            background: "#3b82f6",
+            color: "white",
+            padding: "6px 12px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            fontWeight: "500",
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px"
+          }}>
+            <Edit size={14} />
+            Edit Mode
           </div>
         )}
 
@@ -874,22 +968,24 @@ export default function ReadOnlyWebForm({
                         overflowY: "auto",
                       }}
                     >
-                      {MONTHS.filter((item) => !editedData.entityName.includes(item)).map((item) => (
-                        <div
-                          key={item}
-                          onClick={() => handleEntitySelect(item)}
-                          style={{
-                            padding: "8px 15px",
-                            cursor: editedData.entityName.length >= 5 ? "not-allowed" : "pointer",
-                            color: editedData.entityName.length >= 5 ? "#aaa" : "#222",
-                            fontSize: 14,
-                            userSelect: "none",
-                          }}
-                          tabIndex={0}
-                        >
-                          {item}
-                        </div>
-                      ))}
+                      {COMPANY_OPTIONS
+                        .filter(opt => !editedData.entityName.includes(opt.value))
+                        .map(opt => (
+                          <div
+                            key={opt.value}
+                            onClick={() => handleEntitySelect(opt.value)}
+                            style={{
+                              padding: "8px 15px",
+                              cursor: editedData.entityName.length >= 5 ? "not-allowed" : "pointer",
+                              color: editedData.entityName.length >= 5 ? "#aaa" : "#222",
+                              fontSize: 14,
+                              userSelect: "none",
+                            }}
+                            tabIndex={0}
+                          >
+                            {opt.label}
+                          </div>
+                        ))}
                       {editedData.entityName.length >= 5 && (
                         <div
                           style={{
@@ -1003,14 +1099,14 @@ export default function ReadOnlyWebForm({
                 readOnly={!canEditFields}
                 onChange={(e) => handleFieldChange('securityGroupOther', e.target.value)}
                 placeholder="Security Group"
-                onFocus={!canEditFields ? () => setShowSecurityGroupHint(true) : undefined}
-                onBlur={!canEditFields ? () => setShowSecurityGroupHint(false) : undefined}
+                onFocus={(!canEditFields && !canEditRole()) ? () => setShowSecurityGroupHint(true) : undefined}
+                onBlur={(!canEditFields && !canEditRole()) ? () => setShowSecurityGroupHint(false) : undefined}
               />
             </label>
           </div>
           
           {/* Professional small hint shown just under the input */}
-          {showSecurityGroupHint && !canEditFields && (
+          {showSecurityGroupHint && !canEditFields && !canEditRole() && (
             <div style={{
               marginLeft: "auto",
               marginRight: 0,
@@ -1127,7 +1223,7 @@ export default function ReadOnlyWebForm({
             } else if (title === "Recommended by") {
               stampStatus = d.gunaseelanStatus || null;
               stampApprover = d.gunaseelanStatusApprover || "Mr Gunaseelan";
-              stampDate = d.gunaseelanStatusDate || "";
+              stampDate = d.sivaStatusDate || "";
               designation = "Head of Accounts";
               approverName = stampApprover;
             } else if (title === "Approved by") {
@@ -1204,7 +1300,7 @@ export default function ReadOnlyWebForm({
                         textAlign: "center",
                         letterSpacing: "1.5px"
                       }}>
-                        {finalStatus.toUpperCase()}
+                        {finalStatus === "Approved" ? "GRANTED" : "REJECTED"}
                       </div>
                     </div>
                   )}

@@ -74,7 +74,11 @@ export default function DashboardPage({ onQuickAction }) {
   };
 
   // Calculate correct counts
-  const pending = forms.filter(f => f.finalStatus === "Pending").length;
+  const pending = forms.filter(f => 
+    f.finalStatus === "Pending" && 
+    f.sivaStatus !== "Rejected" && 
+    f.gunaseelanStatus !== "Rejected"
+    ).length;
   const approved = forms.filter(f => f.finalStatus === "Approved").length;
   const rejected = forms.filter(f => f.finalStatus === "Rejected").length;
   const total = forms.length;
