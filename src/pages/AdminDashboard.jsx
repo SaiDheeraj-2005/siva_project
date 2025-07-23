@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import ReadOnlyWebForm from "../components/ReadOnlyWebForm";
 import html2pdf from "html2pdf.js";
-import { FileText, Eye, X } from "lucide-react";
+import { FileText} from "lucide-react";
 import DashboardPage from "../pages/DashboardPage";
 
 // ----- LocalStorage helpers -----

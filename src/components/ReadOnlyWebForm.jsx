@@ -947,7 +947,7 @@ export default function ReadOnlyWebForm({
           </div>
 
           {/* PART C */}
-          <div style={sectionTitle}>PART C : SECURITY GROUPING - DEPARTMENT (HOD must tick, only 1 allowed)</div>
+          <div style={sectionTitle}>PART C : SECURITY GROUPING - DEPARTMENT (HOD must tick)</div>
           <div style={{
             marginBottom: "12px",
             display: "flex",
@@ -1034,7 +1034,7 @@ export default function ReadOnlyWebForm({
           )}
 
           {/* PART D */}
-          <div style={sectionTitle}>PART D : SECURITY GROUPING - CATEGORY (HOD must tick, only 1 allowed)</div>
+          <div style={sectionTitle}>PART D : SECURITY GROUPING - CATEGORY (HOD must tick)</div>
           <div style={{ marginBottom: "12px", display: "flex", flexWrap: "wrap" }}>
             {["HOD/Manager", "Division", "Executive", "Project Accountant", "Others"].map(item => (
               <label key={item} style={checkboxLabel}>

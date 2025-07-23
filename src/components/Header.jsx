@@ -1,65 +1,33 @@
-import React from "react";
+// src/components/Header.jsx - Updated with Supabase logout
+
+import React from 'react';
+import { authService } from '../services/authService';
 
 export default function Header({ onLogout }) {
+  const handleLogout = async () => {
+    // Call the auth service logout
+    await authService.logout();
+    
+    // Call the parent's onLogout handler
+    if (onLogout) {
+      onLogout();
+    }
+  };
+
   return (
-    <header
-      style={{
-        width: "100%",
-        background: "#1B275A", // Matches the SMH Rail logo blue
-        minHeight: 68,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 32px 0 24px",
-        boxSizing: "border-box",
-        boxShadow: "0 2px 8px #0001",
-        zIndex: 100,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <img
-          src="/logo.png"
-          alt="SMH Rail Logo"
-          style={{
-            height: 48,
-            marginRight: 16,
-            background: "#fff",
-            borderRadius: 8,
-            padding: 6,
-            boxShadow: "0 1px 6px #0002"
-          }}
-        />
-        <span
-          style={{
-            color: "#8ba1c5",
-            fontStyle: "italic",
-            fontSize: 13,
-            letterSpacing: 1,
-            marginTop: 8,
-          }}
-        >
-          {/* You can add the company subtitle here if needed */}
-        </span>
-      </div>
-      {onLogout && (
+    <header className="bg-white shadow-sm border-b">
+      <div className="px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <img src="/logo.png" alt="Logo" className="h-10" />
+          <h1 className="text-xl font-bold text-gray-800">Fact Form Management System</h1>
+        </div>
         <button
-        onClick={onLogout}
-        style={{
-            background: "#ef4444",
-            color: "#fff",
-            fontWeight: 600,
-            padding: "6px 18px",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 16,
-            boxShadow: "0 1px 4px #0001",
-            cursor: "pointer",
-            transition: "background 0.2s"
-        }}
+          onClick={handleLogout}
+          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
         >
-        Logout
+          Logout
         </button>
-      )}
+      </div>
     </header>
   );
 }

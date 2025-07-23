@@ -7,8 +7,9 @@ import Header from "../components/Header";
 import ReadOnlyWebForm from "../components/ReadOnlyWebForm";
 import html2pdf from "html2pdf.js";
 import * as XLSX from "xlsx";
-import { Pencil, Trash2, Search, Edit2, Download, Eye, EyeOff, X, FileText } from "lucide-react";
+import {Trash2, Search, Edit2, Download, X, FileText } from "lucide-react";
 import DashboardPage from "../pages/DashboardPage";
+import { userManagementService } from '../services/authService';
 
 // ----- LocalStorage helpers -----
 const getDepartments = () => JSON.parse(localStorage.getItem("departments") || '[]');
@@ -221,6 +222,7 @@ export default function SuperAdminDashboard() {
   );
 }
 
+
 // ============= USER MANAGEMENT ==============
 function generateRandomString(length = 10) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -231,12 +233,325 @@ function generateRandomString(length = 10) {
   return result;
 }
 
+// Password Display Modal Component
+function PasswordModal({ isOpen, onClose, username, password, action }) {
+  if (!isOpen) return null;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(password);
+    alert("Password copied to clipboard!");
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0, left: 0, bottom: 0, right: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10000,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: "12px",
+        padding: "32px",
+        width: "450px",
+        maxWidth: "90vw",
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+      }}>
+        <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          <div style={{
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "#10b981",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 16px"
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <h3 style={{ fontSize: "20px", fontWeight: "bold", color: "#111", margin: 0 }}>
+            {action === "create" ? "User Created Successfully!" : "Password Reset Successfully!"}
+          </h3>
+        </div>
+
+        <div style={{
+          background: "#f9fafb",
+          border: "1px solid #e5e7eb",
+          borderRadius: "8px",
+          padding: "20px",
+          marginBottom: "24px"
+        }}>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Username:</label>
+            <div style={{ fontSize: "16px", fontWeight: "600", color: "#111", marginTop: "4px" }}>{username}</div>
+          </div>
+          
+          <div>
+            <label style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}>Password:</label>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              marginTop: "4px",
+              background: "#fff",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              padding: "8px 12px"
+            }}>
+              <code style={{
+                flex: 1,
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#111",
+                letterSpacing: "1px"
+              }}>{password}</code>
+              <button
+                onClick={handleCopy}
+                style={{
+                  marginLeft: "8px",
+                  padding: "4px 8px",
+                  background: "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px"
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          background: "#fef3c7",
+          border: "1px solid #fcd34d",
+          borderRadius: "6px",
+          padding: "12px",
+          marginBottom: "24px",
+          display: "flex",
+          alignItems: "start",
+          gap: "8px"
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p style={{ fontSize: "14px", color: "#92400e", margin: 0 }}>
+            Please save this password securely. For security reasons, it cannot be retrieved later.
+          </p>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            width: "100%",
+            padding: "12px",
+            background: "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "16px",
+            fontWeight: "600",
+            cursor: "pointer"
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Reset Password Modal Component
+function ResetPasswordModal({ isOpen, onClose, onSubmit, username }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [autoGenerate, setAutoGenerate] = useState(true);
+
+  const handleSubmit = () => {
+    if (!autoGenerate && !newPassword.trim()) {
+      alert("Please enter a password or choose to auto-generate.");
+      return;
+    }
+    
+    const password = autoGenerate ? generateRandomString(10) : newPassword;
+    onSubmit(password);
+    setNewPassword("");
+    setAutoGenerate(true);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0, left: 0, bottom: 0, right: 0,
+      background: "rgba(0,0,0,0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10000,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: "12px",
+        padding: "32px",
+        width: "450px",
+        maxWidth: "90vw",
+        boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+      }}>
+        <h3 style={{ fontSize: "20px", fontWeight: "bold", marginBottom: "8px" }}>
+          Reset Password
+        </h3>
+        <p style={{ color: "#6b7280", marginBottom: "24px" }}>
+          Reset password for user: <strong>{username}</strong>
+        </p>
+
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: "12px",
+            cursor: "pointer"
+          }}>
+            <input
+              type="radio"
+              checked={autoGenerate}
+              onChange={() => setAutoGenerate(true)}
+              style={{ marginRight: "8px" }}
+            />
+            <span style={{ fontSize: "16px" }}>Auto-generate secure password</span>
+          </label>
+          
+          <label style={{
+            display: "flex",
+            alignItems: "center",
+            cursor: "pointer"
+          }}>
+            <input
+              type="radio"
+              checked={!autoGenerate}
+              onChange={() => setAutoGenerate(false)}
+              style={{ marginRight: "8px" }}
+            />
+            <span style={{ fontSize: "16px" }}>Set custom password</span>
+          </label>
+        </div>
+
+        {!autoGenerate && (
+          <input
+            type="text"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value.slice(0, 10))}
+            placeholder="Enter new password (max 10 characters)"
+            maxLength={10}
+            style={{
+              width: "100%",
+              padding: "10px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              marginBottom: "20px",
+              fontSize: "16px"
+            }}
+          />
+        )}
+
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "12px",
+              border: "1px solid #d1d5db",
+              borderRadius: "8px",
+              background: "#fff",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "600"
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            style={{
+              flex: 1,
+              padding: "12px",
+              border: "none",
+              borderRadius: "8px",
+              background: "#3b82f6",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "600"
+            }}
+          >
+            Reset Password
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function UserManagement() {
-  const [users, setUsersState] = useState(getUsers());
-  const [form, setForm] = useState({ username: "", password: "", level: "Normal" });
+  const [users, setUsersState] = useState([]);
+  const [form, setForm] = useState({ username: "", password: "", role: "Normal" });
   const [editIdx, setEditIdx] = useState(null);
+  const [editUserId, setEditUserId] = useState(null);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalData, setPasswordModalData] = useState({ username: "", password: "", action: "create" });
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetUsername, setResetUsername] = useState("");
+  const [resetUserId, setResetUserId] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteUser, setDeleteUser] = useState(null);
+  const [deleteIndex, setDeleteIndex] = useState(null);
+
+  // Load users from Supabase on component mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  async function loadUsers() {
+    setLoading(true);
+    try {
+      const result = await userManagementService.getAllUsers();
+      if (result.success) {
+        const mappedUsers = result.data.map(user => ({
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }));
+        setUsersState(mappedUsers);
+      } else {
+        setError("Failed to load users: " + result.error);
+      }
+    } catch (err) {
+      setError("Error loading users");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function validateUserForm() {
     if (!form.username || form.username.length > 10) {
@@ -251,161 +566,472 @@ function UserManagement() {
     return true;
   }
 
-  function handleAddOrUpdateUser(e) {
+  async function handleAddOrUpdateUser(e) {
     e.preventDefault();
     if (!validateUserForm()) return;
-    const password = form.password || generateRandomString(10);
-    const newUser = { username: form.username, password, level: form.level };
-    let updatedUsers;
-    if (editIdx !== null) {
-      updatedUsers = users.map((u, idx) => (idx === editIdx ? newUser : u));
-    } else {
-      updatedUsers = [...users, newUser];
-    }
-    setUsers(updatedUsers);
-    setUsersState(updatedUsers);
-    setForm({ username: "", password: "", level: "Normal" });
-    setEditIdx(null);
+    
+    setLoading(true);
     setError("");
+
+    try {
+      const password = form.password || generateRandomString(10);
+      
+      if (editIdx !== null) {
+        // Update existing user (username and role only)
+        const result = await userManagementService.updateUser(editUserId, {
+          username: form.username,
+          role: form.role
+        });
+
+        if (result.success) {
+          await loadUsers();
+          setForm({ username: "", password: "", role: "Normal" });
+          setEditIdx(null);
+          setEditUserId(null);
+        } else {
+          setError("Failed to update user: " + result.error);
+        }
+      } else {
+        // Check if username already exists
+        const exists = await userManagementService.checkUsernameExists(form.username);
+        if (exists) {
+          setError("Username already exists");
+          setLoading(false);
+          return;
+        }
+
+        // Create new user
+        const result = await userManagementService.createUser({
+          username: form.username,
+          password: password,
+          role: form.role
+        });
+
+        if (result.success) {
+          await loadUsers();
+          setForm({ username: "", password: "", role: "Normal" });
+          
+          // Show password modal
+          setPasswordModalData({
+            username: form.username,
+            password: password,
+            action: "create"
+          });
+          setShowPasswordModal(true);
+        } else {
+          setError("Failed to create user: " + result.error);
+        }
+      }
+    } catch (err) {
+      setError("An error occurred");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
   
   function handleEdit(idx) {
+    const user = users[idx];
     setEditIdx(idx);
-    setForm(users[idx]);
+    setEditUserId(user.id);
+    setForm({
+      username: user.username,
+      password: "",
+      role: user.role
+    });
     setError("");
   }
   
-  function removeUser(idx) {
-    const updatedUsers = users.filter((_, i) => i !== idx);
-    setUsers(updatedUsers);
-    setUsersState(updatedUsers);
-    setEditIdx(null);
-    setForm({ username: "", password: "", level: "Normal" });
+  async function removeUser() {
+    if (!deleteUser) return;
+    
+    setLoading(true);
     setError("");
+    setShowDeleteModal(false);
+    
+    try {
+      const result = await userManagementService.deleteUser(deleteUser.id);
+      
+      if (result.success) {
+        await loadUsers();
+        
+        // Clear edit state if we're deleting the user being edited
+        if (editUserId === deleteUser.id) {
+          setEditIdx(null);
+          setEditUserId(null);
+          setForm({ username: "", password: "", role: "Normal" });
+        }
+        
+        // Show success message (optional)
+        console.log(`User ${deleteUser.username} deleted successfully`);
+      } else {
+        setError("Failed to delete user: " + result.error);
+      }
+    } catch (err) {
+      setError("Error deleting user: " + err.message);
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setDeleteUser(null);
+      setDeleteIndex(null);
+    }
+  }
+
+  function handleDeleteClick(user, idx) {
+    setDeleteUser(user);
+    setDeleteIndex(idx);
+    setShowDeleteModal(true);
   }
   
   function handleCancelEdit() {
     setEditIdx(null);
-    setForm({ username: "", password: "", level: "Normal" });
+    setEditUserId(null);
+    setForm({ username: "", password: "", role: "Normal" });
     setError("");
   }
 
-  function togglePasswordVisibility(idx) {
-    setShowPassword(prev => ({
-      ...prev,
-      [idx]: !prev[idx]
-    }));
+  function handleResetPassword(user) {
+    setResetUsername(user.username);
+    setResetUserId(user.id);
+    setShowResetModal(true);
+  }
+
+  async function handleResetPasswordSubmit(newPassword) {
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Use resetPassword method from userManagementService
+      const result = await userManagementService.resetPassword(resetUserId, newPassword);
+
+      if (result.success) {
+        setShowResetModal(false);
+        setPasswordModalData({
+          username: resetUsername,
+          password: newPassword,
+          action: "reset"
+        });
+        setShowPasswordModal(true);
+      } else {
+        setError("Failed to reset password: " + result.error);
+        setShowResetModal(false);
+      }
+    } catch (err) {
+      setError("Error resetting password");
+      console.error(err);
+      setShowResetModal(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Delete Confirmation Modal Component
+  function DeleteConfirmationModal({ isOpen, onClose, onConfirm, username }) {
+    if (!isOpen) return null;
+
+    return (
+      <div style={{
+        position: "fixed",
+        top: 0, left: 0, bottom: 0, right: 0,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+      }}>
+        <div style={{
+          background: "#fff",
+          borderRadius: "12px",
+          padding: "32px",
+          width: "400px",
+          maxWidth: "90vw",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+        }}>
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+            <div style={{
+              width: "64px",
+              height: "64px",
+              borderRadius: "50%",
+              background: "#fee2e2",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px"
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+              </svg>
+            </div>
+            <h3 style={{ fontSize: "20px", fontWeight: "bold", color: "#111", marginBottom: "8px" }}>
+              Delete User Account
+            </h3>
+            <p style={{ color: "#6b7280", fontSize: "16px" }}>
+              Are you sure you want to delete <strong>{username}</strong>?
+            </p>
+          </div>
+
+          <div style={{
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: "6px",
+            padding: "12px",
+            marginBottom: "24px",
+            display: "flex",
+            alignItems: "start",
+            gap: "8px"
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p style={{ fontSize: "14px", color: "#92400e", margin: 0 }}>
+              This action cannot be undone. This will permanently delete the user account and all associated data.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={onClose}
+              style={{
+                flex: 1,
+                padding: "12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "8px",
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "600"
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              style={{
+                flex: 1,
+                padding: "12px",
+                border: "none",
+                borderRadius: "8px",
+                background: "#dc2626",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "16px",
+                fontWeight: "600"
+              }}
+            >
+              Delete User
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-white p-6 rounded shadow">
-      <h3 className="font-bold mb-4">{editIdx !== null ? "Edit User" : "Add New User"}</h3>
-      <form className="flex flex-col mb-6" onSubmit={handleAddOrUpdateUser}>
-        <input
-          className="mb-2 border px-2 py-1 rounded"
-          placeholder="Username (maximum 10 characters)"
-          value={form.username}
-          maxLength={10}
-          onChange={e => setForm({ ...form, username: e.target.value.slice(0,10) })}
-          required
-        />
-        <input
-          className="mb-2 border px-2 py-1 rounded"
-          placeholder="Password (leave blank to auto-generate, maximum 10 chars)"
-          value={form.password}
-          maxLength={10}
-          onChange={e => setForm({ ...form, password: e.target.value.slice(0,10) })}
-        />
-        <select
-          className="mb-2 border px-2 py-1 rounded"
-          value={form.level}
-          onChange={e => setForm({ ...form, level: e.target.value })}
-        >
-          <option value="Normal">Normal User</option>
-          <option value="Admin">Admin User</option>
-          <option value="SuperAdmin">Super Admin User</option>
-        </select>
-        {error && <div className="text-red-600 mb-2">{error}</div>}
-        <button className="bg-blue-600 text-white px-3 py-1 rounded mt-2" type="submit">
-          {editIdx !== null ? "Update User" : "Add User"}
-        </button>
-        {editIdx !== null && (
-          <button
-            className="bg-gray-400 text-white px-3 py-1 rounded mt-2"
-            type="button"
-            onClick={handleCancelEdit}
-          >
-            Cancel
-          </button>
-        )}
-      </form>
+    <div className="space-y-8">
+      {/* Add/Edit User Card */}
+      <div className="bg-white rounded-xl shadow-sm border p-8">
+        <h3 className="text-2xl font-bold text-gray-900 mb-6">
+          {editIdx !== null ? "Edit User" : "Add New User"}
+        </h3>
+        
+        <form className="space-y-4" onSubmit={handleAddOrUpdateUser}>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+            <input
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              placeholder="Enter username (maximum 10 characters)"
+              value={form.username}
+              maxLength={10}
+              onChange={e => setForm({ ...form, username: e.target.value.slice(0,10) })}
+              required
+              disabled={loading}
+            />
+          </div>
+          
+          {editIdx === null && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <input
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                placeholder="Leave blank to auto-generate (maximum 10 characters)"
+                value={form.password}
+                maxLength={10}
+                onChange={e => setForm({ ...form, password: e.target.value.slice(0,10) })}
+                disabled={loading}
+              />
+              <p className="mt-1 text-sm text-gray-500">If left empty, a secure password will be generated automatically</p>
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">User Role</label>
+            <select
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              value={form.role}
+              onChange={e => setForm({ ...form, role: e.target.value })}
+              disabled={loading}
+            >
+              <option value="Normal">Normal User</option>
+              <option value="Admin">Admin User</option>
+              <option value="SuperAdmin">Super Admin User</option>
+            </select>
+          </div>
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+              {error}
+            </div>
+          )}
+          
+          <div className="flex gap-3 pt-4">
+            <button 
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:bg-gray-400" 
+              type="submit"
+              disabled={loading}
+            >
+              {loading ? "Processing..." : (editIdx !== null ? "Update User" : "Add User")}
+            </button>
+            {editIdx !== null && (
+              <button
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-lg font-medium transition-colors"
+                type="button"
+                onClick={handleCancelEdit}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
       
-      <h3 className="font-bold mb-4">Existing Users</h3>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Role</th>
-              <th className="border border-gray-300 px-4 py-2 text-left font-semibold">User Name</th>
-              <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Password</th>
-              <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, idx) => (
-              <tr key={u.username + idx} className="hover:bg-gray-50">
-                <td className="border border-gray-300 px-4 py-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    u.level === 'SuperAdmin' ? 'bg-red-100 text-red-800' :
-                    u.level === 'Admin' ? 'bg-blue-100 text-blue-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {u.level}
-                  </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 font-medium">{u.username}</td>
-                <td className="border border-gray-300 px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm">
-                      {showPassword[idx] ? u.password : '••••••••••'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility(idx)}
-                      className="text-gray-500 hover:text-gray-700 p-1"
-                      title={showPassword[idx] ? "Hide password" : "Show password"}
-                    >
-                      {showPassword[idx] ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </td>
-                <td className="border border-gray-300 px-4 py-2">
-                  <div className="flex gap-2">
-                    <button
-                      className="text-green-600 hover:text-green-800 px-2 py-1 rounded border border-green-300 hover:bg-green-50 transition-colors"
-                      onClick={() => handleEdit(idx)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="text-red-600 hover:text-red-800 px-2 py-1 rounded border border-red-300 hover:bg-red-50 transition-colors"
-                      onClick={() => removeUser(idx)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </td>
+      {/* Users Table Card */}
+      <div className="bg-white rounded-xl shadow-sm border">
+        <div className="p-6 border-b">
+          <h3 className="text-2xl font-bold text-gray-900">Existing Users</h3>
+          <p className="text-gray-600 mt-1">Manage user accounts and permissions</p>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">User Name</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created</th>
+                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            No users found. Add your first user above.
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {users.map((u, idx) => (
+                <tr key={u.id || (u.username + idx)} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-gray-600 font-medium text-sm">
+                          {u.username.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="font-medium text-gray-900">{u.username}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      u.role === 'SuperAdmin' ? 'bg-red-100 text-red-800' :
+                      u.role === 'Admin' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        className="text-blue-600 hover:text-blue-800 px-3 py-2 text-sm font-medium hover:bg-blue-50 rounded-lg transition-colors"
+                        onClick={() => handleEdit(idx)}
+                        disabled={loading}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="text-purple-600 hover:text-purple-800 px-3 py-2 text-sm font-medium hover:bg-purple-50 rounded-lg transition-colors"
+                        onClick={() => handleResetPassword(u)}
+                        disabled={loading}
+                      >
+                        Reset Password
+                      </button>
+                      <button
+                        className="text-red-600 hover:text-red-800 px-3 py-2 text-sm font-medium hover:bg-red-50 rounded-lg transition-colors"
+                        onClick={() => handleDeleteClick(u, idx)}
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && !loading && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-500">No users found. Add your first user above.</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Loading indicator */}
+        {loading && (
+          <div className="text-center py-4 text-blue-600 border-t">
+            <div className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <span>Loading...</span>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Password Modal */}
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        username={passwordModalData.username}
+        password={passwordModalData.password}
+        action={passwordModalData.action}
+      />
+
+      {/* Reset Password Modal */}
+      <ResetPasswordModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onSubmit={handleResetPasswordSubmit}
+        username={resetUsername}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setDeleteUser(null);
+          setDeleteIndex(null);
+        }}
+        onConfirm={removeUser}
+        username={deleteUser?.username}
+      />
     </div>
   );
 }

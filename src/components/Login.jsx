@@ -1,61 +1,49 @@
+// src/components/Login.jsx
+
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-// Helper: get users from localStorage
-function getUsers() {
-  return JSON.parse(localStorage.getItem("users") || "[]");
-}
+import { authService } from "../services/authService";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    // --- Role checks (hardcoded first) ---
-    let role = "";
+    try {
+      // First check hardcoded credentials for backward compatibility
+      let hardcodedRole = "";
 
-    if (username === "superadmin" && password === "2219") {
-      role = "SuperAdmin";
-    } else if (username === "admin" && password === "admin") {
-      role = "Admin";
-    } else if (username === "user" && password === "user") {
-      role = "Normal";
-    } else {
-      // --- Check against localStorage users (dynamic) ---
-      const users = getUsers();
-      const found = users.find(
-        (u) => u.username === username && u.password === password
-      );
-      if (found) {
-        // Support for users table: add "SuperAdmin" if ever needed
-        if (found.level === "SuperAdmin") {
-          role = "SuperAdmin";
-        } else if (found.level === "Admin") {
-          role = "Admin";
-        } else {
-          role = "Normal";
-        }
-      }
-    }
-
-    if (role) {
-      localStorage.setItem("role", role);
-      localStorage.setItem("userLoggedIn", "true");
-      localStorage.setItem("username", username);
-      // --- REMOVE department (do NOT set it) ---
-      localStorage.removeItem("department");
-      // Route based on role
-      if (role === "SuperAdmin") {
+      if (hardcodedRole) {
+        // Use hardcoded credentials
+        localStorage.setItem("role", hardcodedRole);
+        localStorage.setItem("userLoggedIn", "true");
+        localStorage.setItem("username", username);
+        localStorage.removeItem("department");
+        
         navigate("/dashboard", { replace: true });
       } else {
-        navigate("/dashboard", { replace: true });
+        // Try Supabase authentication
+        const result = await authService.login(username, password);
+        
+        if (result.success) {
+          // Navigate based on role
+          navigate("/dashboard", { replace: true });
+        } else {
+          setError(result.error || "Invalid username or password");
+        }
       }
-    } else {
-      setError("Invalid username or password");
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("An error occurred during login. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,7 +59,7 @@ export default function Login() {
         overflow: "hidden",
       }}
     >
-      {/* --- Background image with low opacity --- */}
+      {/* Background image with low opacity */}
       <img
         src="/logo_2.png"
         alt="SMH Rail"
@@ -88,7 +76,7 @@ export default function Login() {
         }}
       />
 
-      {/* --- Login card --- */}
+      {/* Login card */}
       <form
         onSubmit={handleSubmit}
         style={{
@@ -127,12 +115,14 @@ export default function Login() {
         {error && (
           <div style={{ color: "#ef4444", marginBottom: 16, fontWeight: 500 }}>{error}</div>
         )}
+        
         <input
           type="text"
           placeholder="Username"
           value={username}
           autoComplete="username"
           onChange={(e) => setUsername(e.target.value)}
+          disabled={loading}
           style={{
             marginBottom: 12,
             width: "100%",
@@ -141,14 +131,17 @@ export default function Login() {
             border: "1.2px solid #bcd",
             fontSize: 16,
             background: "#f9fafb",
+            opacity: loading ? 0.7 : 1,
           }}
         />
+        
         <input
           type="password"
           placeholder="Password"
           value={password}
           autoComplete="current-password"
           onChange={(e) => setPassword(e.target.value)}
+          disabled={loading}
           style={{
             marginBottom: 18,
             width: "100%",
@@ -157,14 +150,17 @@ export default function Login() {
             border: "1.2px solid #bcd",
             fontSize: 16,
             background: "#f9fafb",
+            opacity: loading ? 0.7 : 1,
           }}
         />
+        
         <button
           type="submit"
+          disabled={loading}
           style={{
             width: "100%",
             padding: 12,
-            background: "#15429f",
+            background: loading ? "#6b7280" : "#15429f",
             color: "white",
             fontWeight: "bold",
             border: "none",
@@ -173,11 +169,22 @@ export default function Login() {
             boxShadow: "0 1px 8px #23366b14",
             letterSpacing: 0.5,
             marginBottom: 2,
-            transition: "background 0.2s"
+            transition: "background 0.2s",
+            cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          Login
+          {loading ? "Signing in..." : "Login"}
         </button>
+
+        {/* Status indicator for Supabase connection */}
+        <div style={{
+          marginTop: 16,
+          fontSize: 12,
+          color: "#6b7280",
+          textAlign: "center"
+        }}>
+          {loading ? "Connecting to database..." : "Secure connection with Supabase"}
+        </div>
       </form>
     </div>
   );

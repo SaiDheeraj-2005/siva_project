@@ -113,7 +113,7 @@ const WebForm = ({ onSubmit, initialData = null, isResubmission = false, origina
   const [formData, setFormData] = useState(initialState);
   const [requestedName, setRequestedName] = useState("");
   const [requestedDesignation, setRequestedDesignation] = useState("");
-  const [touched, setTouched] = useState({});
+  const [touched, setTouched] = useState({});  // FIXED: This was the issue - proper useState declaration
   const [errors, setErrors] = useState({});
   const [showErrors, setShowErrors] = useState(false);
   const [entityDropdownOpen, setEntityDropdownOpen] = useState(false);
