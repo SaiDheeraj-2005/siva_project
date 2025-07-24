@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, TrendingUp, Users, FileText, BarChart3, PieChart, Activity, X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Cell, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Pie, PieChart as RechartsPieChart, Cell, BarChart, Bar } from 'recharts';
 
 export default function DashboardPage({ onQuickAction }) {
   const [forms, setForms] = useState([]);
@@ -202,14 +202,23 @@ export default function DashboardPage({ onQuickAction }) {
   };
 
   const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Unknown time';
+    
     const now = new Date();
     const time = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(time.getTime())) return 'Invalid date';
+    
     const diffInSeconds = Math.floor((now - time) / 1000);
     
+    if (diffInSeconds < 0) return 'Future date';
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)}w ago`;
+    return time.toLocaleDateString();
   };
 
   const statCards = [
@@ -357,7 +366,7 @@ export default function DashboardPage({ onQuickAction }) {
             {activities.length === 0 ? (
               <div className="text-slate-500 text-center py-8">No recent activity.</div>
             ) : (
-              activities.slice(0, 20).map((activity, index) => (
+              activities.slice(0, 50).map((activity, index) => (
                 <div
                   key={activity.id}
                   className={`flex items-start space-x-3 p-3 rounded-lg border ${getActivityColor(activity.type)} hover:shadow-sm transition-all duration-200`}
@@ -422,14 +431,14 @@ export default function DashboardPage({ onQuickAction }) {
               </div>
 
               {/* Status Distribution and User Activity */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Distribution</h3>
                   <div className="bg-slate-50 rounded-lg p-4">
                     {analyticsData.statusDistribution.length > 0 ? (
                       <ResponsiveContainer width="100%" height={250}>
                         <RechartsPieChart>
-                          <PieChart
+                          <Pie
                             data={analyticsData.statusDistribution}
                             cx="50%"
                             cy="50%"
@@ -441,7 +450,7 @@ export default function DashboardPage({ onQuickAction }) {
                             {analyticsData.statusDistribution.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
-                          </PieChart>
+                          </Pie>
                           <Tooltip />
                         </RechartsPieChart>
                       </ResponsiveContainer>

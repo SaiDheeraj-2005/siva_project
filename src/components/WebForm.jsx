@@ -223,7 +223,7 @@ const WebForm = ({ onSubmit, initialData = null, isResubmission = false, origina
         case 'noOfDaysBackdated':
         case 'year':
           // Only allow numbers
-          validatedValue = value.replace(/[^0-9]/g, '');
+          validatedValue = value.replace(/[^0-9,]/g, '');
           break;
         case 'factUserId':
           // Only allow letters, max 10 characters
