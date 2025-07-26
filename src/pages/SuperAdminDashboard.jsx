@@ -2256,18 +2256,35 @@ function RejectionCommentModal({ isOpen, onClose, onSubmit, title }) {
 }
 
 // ============= FILE VIEWER MODAL =============
-function FileViewerModal({ isOpen, onClose, fileName, onRemove }) {
+function FileViewerModal({ isOpen, onClose, fileName, fileData, fileType, onRemove }) {
   const handleDownload = () => {
-    const sampleContent = `This is the approved file: ${fileName}\nDownloaded on: ${new Date().toLocaleString()}`;
-    const blob = new Blob([sampleContent], { type: 'text/plain' });
+    if (!fileData) {
+      alert("File data not available");
+      return;
+    }
+
+    // Extract the base64 data from the data URL
+    const base64Data = fileData.split(',')[1];
+    
+    // Convert base64 to binary
+    const binaryString = window.atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Create blob with the correct MIME type
+    const blob = new Blob([bytes], { type: fileType || 'application/pdf' });
     const url = window.URL.createObjectURL(blob);
     
+    // Create download link
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
     
+    // Clean up
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   };
@@ -2433,23 +2450,30 @@ function FormItem({ form, idx, updateForm, readonly }) {
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Store file temporarily and show date picker
-      setPendingFile(file);
-      setShowFileDatePicker(true);
-    }
-  };
+  const file = e.target.files[0];
+  if (file) {
+    // Store the file temporarily and show date picker
+    setPendingFile(file);
+    setShowFileDatePicker(true);
+  }
+};
 
   const handleFileUploadWithDate = (selectedDate) => {
-    if (pendingFile) {
+  if (pendingFile) {
+    // Read the file content before storing
+    const reader = new FileReader();
+    reader.onload = (event) => {
       updateForm(idx, { 
         approvedFile: pendingFile.name,
-        approvedFileUploadDate: selectedDate
+        approvedFileData: event.target.result,
+        approvedFileType: pendingFile.type,
+        approvedFileUploadDate: selectedDate  // Use the selected date instead of current date
       });
       setPendingFile(null);
-    }
-  };
+    };
+    reader.readAsDataURL(pendingFile);
+  }
+};
 
   const handleFinalStatusDate = (selectedDate) => {
     if (pendingFinalStatus) {
@@ -2474,11 +2498,13 @@ function FormItem({ form, idx, updateForm, readonly }) {
   };
 
   const handleFileRemove = () => {
-    updateForm(idx, { 
-      approvedFile: null,
-      approvedFileUploadDate: null
-    });
-  };
+  updateForm(idx, { 
+    approvedFile: null,
+    approvedFileData: null, // Clear the file data
+    approvedFileType: null, // Clear the file type
+    approvedFileUploadDate: null
+  });
+};
 
   const handleDownloadPDF = () => {
     const element = formRef.current;
@@ -2727,19 +2753,25 @@ function FormItem({ form, idx, updateForm, readonly }) {
         isOpen={showFileViewer}
         onClose={() => setShowFileViewer(false)}
         fileName={form.approvedFile}
+        fileData={form.approvedFileData} // Pass the file data
+        fileType={form.approvedFileType} // Pass the file type
         onRemove={handleFileRemove}
       />
 
       {/* File Upload Date Picker Modal */}
-      <DatePickerModal
-        isOpen={showFileDatePicker}
-        onClose={() => {
-          setShowFileDatePicker(false);
-          setPendingFile(null);
-        }}
-        onSubmit={handleFileUploadWithDate}
-        title="Select File Upload Date"
-      />
+        <DatePickerModal
+          isOpen={showFileDatePicker}
+          onClose={() => {
+            setShowFileDatePicker(false);
+            setPendingFile(null);
+            // Reset the file input
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput) fileInput.value = '';
+          }}
+          onSubmit={handleFileUploadWithDate}
+          title="Select File Upload Date"
+          defaultDate={formatDate()}  // Provide current date as default
+        />
 
       {/* Final Status Date Picker Modal */}
       <DatePickerModal

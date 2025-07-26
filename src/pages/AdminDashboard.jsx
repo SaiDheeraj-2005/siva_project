@@ -25,6 +25,8 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [role, setRole] = useState(localStorage.getItem("role") || "");
   const [username, setUsername] = useState(localStorage.getItem("username") || "");
+  const [showFileDatePicker, setShowFileDatePicker] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
 
   useEffect(() => {
     function syncAuth() {
@@ -240,15 +242,28 @@ function RejectionCommentModal({ isOpen, onClose, onSubmit, title }) {
 
 
 // ============= FILE VIEWER MODAL =============
-function FileViewerModal({ isOpen, onClose, fileName, onRemove }) {
-  // Function to handle actual file download
+function FileViewerModal({ isOpen, onClose, fileName, fileData, fileType, onRemove }) {
   const handleDownload = () => {
-    // Create a blob with some sample content (in real app, this would be the actual file data)
-    const sampleContent = `This is the approved file: ${fileName}\nDownloaded on: ${new Date().toLocaleString()}`;
-    const blob = new Blob([sampleContent], { type: 'text/plain' });
+    if (!fileData) {
+      alert("File data not available");
+      return;
+    }
+
+    // Extract the base64 data from the data URL
+    const base64Data = fileData.split(',')[1];
+    
+    // Convert base64 to binary
+    const binaryString = window.atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Create blob with the correct MIME type
+    const blob = new Blob([bytes], { type: fileType || 'application/pdf' });
     const url = window.URL.createObjectURL(blob);
     
-    // Create a temporary link element and click it to trigger download
+    // Create download link
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
@@ -606,6 +621,100 @@ function StaffRejectedForms() {
   );
 }
 
+function DatePickerModal({ isOpen, onClose, onSubmit, title, defaultDate = "" }) {
+  const [selectedDate, setSelectedDate] = useState(defaultDate || formatDate());
+
+  const handleSubmit = () => {
+    if (!selectedDate) {
+      alert("Please select a date.");
+      return;
+    }
+    onSubmit(selectedDate);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Convert DD/MM/YYYY to YYYY-MM-DD for input
+  const convertToInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+
+  // Convert YYYY-MM-DD to DD/MM/YYYY
+  const convertFromInputFormat = (dateStr) => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
+  return (
+    <div style={{
+      position: "fixed",
+      top: 0, left: 0, bottom: 0, right: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10000,
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: "8px",
+        padding: "24px",
+        width: "400px",
+        maxWidth: "90vw"
+      }}>
+        <h3 style={{ marginBottom: "16px", fontSize: "18px", fontWeight: "bold" }}>
+          {title}
+        </h3>
+        <input
+          type="date"
+          value={convertToInputFormat(selectedDate)}
+          onChange={(e) => setSelectedDate(convertFromInputFormat(e.target.value))}
+          style={{
+            width: "100%",
+            padding: "8px",
+            border: "1px solid #ccc",
+            borderRadius: "4px",
+            marginBottom: "16px",
+            fontSize: "16px"
+          }}
+        />
+        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 16px",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              background: "#f5f5f5",
+              cursor: "pointer"
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            style={{
+              padding: "8px 16px",
+              border: "none",
+              borderRadius: "4px",
+              background: "#2563eb",
+              color: "white",
+              cursor: "pointer"
+            }}
+          >
+            Confirm Date
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============= SINGLE FORM ITEM (View, Approve, Upload, Comment) ============
 // ============= SINGLE FORM ITEM (View, Approve, Upload, Comment) ============
 function FormItem({ form, idx, updateForm, readonly }) {
   const username = localStorage.getItem("username");
@@ -613,24 +722,30 @@ function FormItem({ form, idx, updateForm, readonly }) {
   const isSiva = ["Siva", "HOD"].includes(username);
   const isGuna = username === "Gunaseelan";
   const isAdmin = role === "Admin";
+  const isSuperAdmin = role === "SuperAdmin";
   const canEditSiva = !readonly && isSiva;
   const canEditGuna = !readonly && isGuna;
-  const canEditFinal = !readonly && (isAdmin || role === "SuperAdmin");
+  const canEditFinal = !readonly && (isAdmin || isSuperAdmin);
 
   const [showFormModal, setShowFormModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [rejectionType, setRejectionType] = useState("");
   const [showFileViewer, setShowFileViewer] = useState(false);
+  const [showFileDatePicker, setShowFileDatePicker] = useState(false);
+  const [showFinalDatePicker, setShowFinalDatePicker] = useState(false);
+  const [showUserAccessDatePicker, setShowUserAccessDatePicker] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [pendingFinalStatus, setPendingFinalStatus] = useState(null);
   const formRef = useRef();
 
-  // Check if final status can be changed to Approved
-  const canApprove = form.sivaStatus === "Approved" && 
-                     form.gunaseelanStatus === "Approved" && 
-                     form.approvedFile;
+  // Check if final status can be changed
+  const canChangeFinalStatus = form.sivaStatus === "Approved" && 
+                               form.gunaseelanStatus === "Approved" && 
+                               form.approvedFile;
 
   const handleStatusChange = (field, value) => {
-    if (field === "finalStatus" && value === "Approved" && !canApprove) {
-      alert("Cannot approve: Both Siva and Gunaseelan must approve, and approved file must be uploaded.");
+    if (field === "finalStatus" && !canChangeFinalStatus) {
+      alert("Cannot change final status: Both Siva and Gunaseelan must approve, and approved file must be uploaded.");
       return;
     }
 
@@ -640,25 +755,36 @@ function FormItem({ form, idx, updateForm, readonly }) {
       return;
     }
 
+    // For final status changes (Approved/Rejected), show date picker
+    if (field === "finalStatus" && (value === "Approved" || value === "Rejected")) {
+      // Store the pending status value in state instead of in the form
+      setPendingFinalStatus(value);
+      setShowFinalDatePicker(true);
+      return;
+    }
+
+    const currentDate = formatDate();
+    const currentTimestamp = Date.now();
+    
     let updates = {
       [field]: value,
       [`${field}Approver`]: username,
-      [`${field}Date`]: formatDate(),
+      [`${field}Date`]: currentDate,
+      [`${field}Timestamp`]: currentTimestamp,
     };
-
-    // Add final approved date when final status is set to Approved
-    if (field === "finalStatus" && value === "Approved") {
-      updates.finalApprovedDate = new Date().toLocaleDateString();
-    }
 
     updateForm(idx, updates);
   };
 
   const handleRejectionSubmit = (comment) => {
+    const currentDate = formatDate();
+    const currentTimestamp = Date.now();
+    
     const updates = {
       [rejectionType]: "Rejected",
       [`${rejectionType}Approver`]: username,
-      [`${rejectionType}Date`]: formatDate(),
+      [`${rejectionType}Date`]: currentDate,
+      [`${rejectionType}Timestamp`]: currentTimestamp,
       [`${rejectionType}Comment`]: comment,
     };
     updateForm(idx, updates);
@@ -667,16 +793,56 @@ function FormItem({ form, idx, updateForm, readonly }) {
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      updateForm(idx, { 
-        approvedFile: file.name,
-        approvedFileUploadDate: new Date().toLocaleDateString()
-      });
+      // Store the file temporarily and show date picker
+      setPendingFile(file);
+      setShowFileDatePicker(true);
     }
+  };
+
+  const handleFileUploadWithDate = (selectedDate) => {
+    if (pendingFile) {
+      // Read the file content before storing
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        updateForm(idx, { 
+          approvedFile: pendingFile.name,
+          approvedFileData: event.target.result,
+          approvedFileType: pendingFile.type,
+          approvedFileUploadDate: selectedDate  // Use the selected date instead of current date
+        });
+        setPendingFile(null);
+      };
+      reader.readAsDataURL(pendingFile);
+    }
+  };
+
+  const handleFinalStatusDate = (selectedDate) => {
+    if (pendingFinalStatus) {
+      const updates = {
+        finalStatus: pendingFinalStatus,
+        finalStatusApprover: username,
+        finalStatusDate: selectedDate,
+        [`final${pendingFinalStatus}Date`]: selectedDate,
+        [`final${pendingFinalStatus}Timestamp`]: Date.now(),
+        naraStatusDate: selectedDate // For the approval stamp in the form
+      };
+      
+      updateForm(idx, updates);
+      setPendingFinalStatus(null);
+    }
+  };
+
+  const handleUserAccessDate = (selectedDate) => {
+    updateForm(idx, { 
+      userAccessDate: selectedDate 
+    });
   };
 
   const handleFileRemove = () => {
     updateForm(idx, { 
       approvedFile: null,
+      approvedFileData: null, // Clear the file data
+      approvedFileType: null, // Clear the file type
       approvedFileUploadDate: null
     });
   };
@@ -694,21 +860,48 @@ function FormItem({ form, idx, updateForm, readonly }) {
   return (
     <>
       <div className="border rounded-lg p-6 mb-6 bg-white shadow-sm">
-        {/* User Info */}
+        {/* User Info with User Access Date */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-lg font-semibold text-gray-900">User: {form.username}</h4>
               <p className="text-sm text-gray-500">Form ID: {form.id}</p>
             </div>
-            <div className="text-right">
-              <strong className="text-gray-700">Submitted Form:</strong>
-              <button 
-                className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                onClick={() => setShowFormModal(true)}
-              >
-                View Form
-              </button>
+            <div className="flex items-center gap-8">
+              {/* User Access Date */}
+              <div className="flex items-center gap-2">
+                <strong className="text-gray-700">User Access Date:</strong>
+                {!form.userAccessDate ? (
+                  <button
+                    onClick={() => setShowUserAccessDatePicker(true)}
+                    disabled={readonly}
+                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 disabled:opacity-50"
+                  >
+                    Select Date
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{form.userAccessDate}</span>
+                    {!readonly && (
+                      <button
+                        onClick={() => setShowUserAccessDatePicker(true)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="text-right">
+                <strong className="text-gray-700">Submitted Form:</strong>
+                <button 
+                  className="ml-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  onClick={() => setShowFormModal(true)}
+                >
+                  View Form
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -720,19 +913,25 @@ function FormItem({ form, idx, updateForm, readonly }) {
             <div className="mb-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Final Status</label>
               <select
-                disabled={!canEditFinal}
+                disabled={readonly || !canChangeFinalStatus || !canEditFinal}
                 value={form.finalStatus || "Pending"}
                 onChange={e => handleStatusChange("finalStatus", e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="Pending">Pending</option>
-                <option value="Approved" disabled={!canApprove}>Approved</option>
-                <option value="Rejected"disabled={!canApprove}>Rejected</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
               </select>
             </div>
-            {form.finalApprovedDate && (
+            {/* Display both approved and rejected dates with appropriate colors */}
+            {form.finalStatus === "Approved" && (
               <div className="text-xs text-green-600 font-medium">
                 Approved: {form.finalApprovedDate}
+              </div>
+            )}
+            {form.finalStatus === "Rejected" && (
+              <div className="text-xs text-red-600 font-medium">
+                Rejected: {form.finalRejectedDate}
               </div>
             )}
           </div>
@@ -896,7 +1095,43 @@ function FormItem({ form, idx, updateForm, readonly }) {
         isOpen={showFileViewer}
         onClose={() => setShowFileViewer(false)}
         fileName={form.approvedFile}
+        fileData={form.approvedFileData} // Pass the file data
+        fileType={form.approvedFileType} // Pass the file type
         onRemove={handleFileRemove}
+      />
+
+      {/* File Upload Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showFileDatePicker}
+        onClose={() => {
+          setShowFileDatePicker(false);
+          setPendingFile(null);
+          // Reset the file input
+          const fileInput = document.querySelector('input[type="file"]');
+          if (fileInput) fileInput.value = '';
+        }}
+        onSubmit={handleFileUploadWithDate}
+        title="Select File Upload Date"
+        defaultDate={formatDate()}  // Provide current date as default
+      />
+
+      {/* Final Status Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showFinalDatePicker}
+        onClose={() => {
+          setShowFinalDatePicker(false);
+          setPendingFinalStatus(null);
+        }}
+        onSubmit={handleFinalStatusDate}
+        title="Select Approval/Rejection Date"
+      />
+
+      {/* User Access Date Picker Modal */}
+      <DatePickerModal
+        isOpen={showUserAccessDatePicker}
+        onClose={() => setShowUserAccessDatePicker(false)}
+        onSubmit={handleUserAccessDate}
+        title="Select User Access Date"
       />
     </>
   );
